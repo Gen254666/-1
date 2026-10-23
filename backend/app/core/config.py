@@ -4,8 +4,8 @@ from typing import Literal
 from pydantic import model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-DEV_JWT_SECRET = "dev-only-change-me"
-DEV_MCP_SERVICE_SECRET = "dev-only-change-me"
+DEV_JWT_SECRET = "dev-only-change-me-32-bytes-minimum"
+DEV_MCP_SERVICE_SECRET = "dev-only-mcp-secret-32-bytes-minimum"
 
 
 class Settings(BaseSettings):
@@ -27,6 +27,11 @@ class Settings(BaseSettings):
     redis_url: str = "redis://localhost:6379/0"
 
     jwt_secret: str = DEV_JWT_SECRET
+    jwt_algorithm: str = "HS256"
+    access_token_minutes: int = 30
+    refresh_token_days: int = 7
+    login_max_failures: int = 5
+    login_lock_minutes: int = 15
     mcp_base_url: str = "http://localhost:8001"
     mcp_service_secret: str = DEV_MCP_SERVICE_SECRET
 

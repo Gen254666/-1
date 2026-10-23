@@ -1,6 +1,8 @@
 import os
 from collections.abc import AsyncIterator
 
+import fakeredis.aioredis
+import httpx
 import pytest
 import pytest_asyncio
 from sqlalchemy import text
@@ -48,3 +50,28 @@ async def session(db_engine: AsyncEngine) -> AsyncIterator[AsyncSession]:
     async with factory() as db_session:
         yield db_session
         await db_session.rollback()
+
+
+@pytest_asyncio.fixture
+async def app_client(db_engine: AsyncEngine) -> AsyncIterator[httpx.AsyncClient]:
+    from app.core.db import get_db_session
+    from app.core.redis import get_redis_client
+    from app.main import create_app
+
+    app = create_app()
+    factory = async_sessionmaker(db_engine, expire_on_commit=False)
+    fake_redis = fakeredis.aioredis.FakeRedis(decode_responses=True)
+
+    async def override_db() -> AsyncIterator[AsyncSession]:
+        async with factory() as db_session:
+            yield db_session
+
+    app.dependency_overrides[get_db_session] = override_db
+    app.dependency_overrides[get_redis_client] = lambda: fake_redis
+
+    transport = httpx.ASGITransport(app=app)
+    async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
+        yield client
+
+    app.dependency_overrides.clear()
+    await fake_redis.aclose()
