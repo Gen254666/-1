@@ -1,0 +1,44 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+*.egg-info/
+
+# Node
+node_modules/
+frontend/dist/
+.vite/
+
+# Env / secrets
+.env
+.env.*
+!.env.example
+
+# Business data (local only)
+data/inbox/
+data/exports/
+*.xlsx
+*.xls
+*.xlsm
+*.csv
+!data/templates/
+!data/templates/**/*.csv
+
+# Databases / vector store
+*.sqlite
+*.db
+chroma_data/
+chroma/
+
+# Logs / OS
+*.log
+.DS_Store
+Thumbs.db
+
+# IDE
+.idea/
+.vscode/
