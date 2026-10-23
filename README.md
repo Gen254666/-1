@@ -4,7 +4,7 @@
 
 ## 当前状态
 
-阶段一：工程奠基。目录、配置、日志与后端 CI 已就绪，数据库接入进行中。
+MVP 主要模块已完成：数据导入/版本回滚、行情查询、报价与日报、MCP 工具、Agent 对话和 React 前端。集成回归与部署演练进行中。
 
 ## 目录结构
 
@@ -26,6 +26,16 @@ uv run ruff check .
 uv run ruff format --check .
 uv run mypy .
 uv run pytest
+```
+
+### 前端
+
+```bash
+cd frontend
+npm install
+npm run dev     # http://localhost:5173，/api 代理到 8000
+npm test
+npm run build
 ```
 
 ### 本地 PostgreSQL（Windows 开发）
