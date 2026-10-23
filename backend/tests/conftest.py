@@ -1,5 +1,6 @@
 import os
 from collections.abc import AsyncIterator
+from typing import Any
 
 import fakeredis.aioredis
 import httpx
@@ -53,8 +54,8 @@ async def session(db_engine: AsyncEngine) -> AsyncIterator[AsyncSession]:
 
 
 @pytest_asyncio.fixture
-async def app_client(db_engine: AsyncEngine) -> AsyncIterator[httpx.AsyncClient]:
-    from app.core.db import get_db_session
+async def app_instance(db_engine: AsyncEngine) -> AsyncIterator[Any]:
+    from app.core.db import get_db_session, get_db_session_factory
     from app.core.redis import get_redis_client
     from app.main import create_app
 
@@ -67,11 +68,17 @@ async def app_client(db_engine: AsyncEngine) -> AsyncIterator[httpx.AsyncClient]
             yield db_session
 
     app.dependency_overrides[get_db_session] = override_db
+    app.dependency_overrides[get_db_session_factory] = lambda: factory
     app.dependency_overrides[get_redis_client] = lambda: fake_redis
 
-    transport = httpx.ASGITransport(app=app)
-    async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
-        yield client
+    yield app
 
     app.dependency_overrides.clear()
     await fake_redis.aclose()
+
+
+@pytest_asyncio.fixture
+async def app_client(app_instance: Any) -> AsyncIterator[httpx.AsyncClient]:
+    transport = httpx.ASGITransport(app=app_instance)
+    async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
+        yield client

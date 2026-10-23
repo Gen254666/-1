@@ -38,6 +38,20 @@ class Settings(BaseSettings):
     mcp_service_secret: str = DEV_MCP_SERVICE_SECRET
     chroma_path: str = "../data/chroma"
 
+    llm_fallback_order: str = "claude,deepseek,doubao"
+    llm_timeout_seconds: float = 30.0
+    anthropic_api_key: str = ""
+    anthropic_base_url: str = "https://api.anthropic.com"
+    claude_model: str = "claude-sonnet-4-6"
+    deepseek_api_key: str = ""
+    deepseek_base_url: str = "https://api.deepseek.com"
+    deepseek_model: str = "deepseek-chat"
+    doubao_api_key: str = ""
+    doubao_base_url: str = "https://ark.cn-beijing.volces.com/api/v3"
+    doubao_model: str = ""
+    chat_max_tool_calls: int = 8
+    chat_max_tool_rounds: int = 4
+
     cors_origins: list[str] = ["http://localhost:5173"]
 
     @model_validator(mode="after")

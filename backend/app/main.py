@@ -6,6 +6,7 @@ from app.api.admin import admin_router, users_router
 from app.api.points import router as points_router
 from app.api.read import router as read_router
 from app.auth.router import router as auth_router
+from app.chat.router import router as chat_router
 from app.core.config import get_settings
 from app.core.errors import ApiError
 from app.core.logging import configure_logging
@@ -40,6 +41,7 @@ def create_app() -> FastAPI:
 
     app.include_router(auth_router)
     app.include_router(read_router)
+    app.include_router(chat_router)
     app.include_router(points_router)
     app.include_router(admin_router)
     app.include_router(users_router)

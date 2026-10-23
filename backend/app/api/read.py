@@ -10,9 +10,11 @@ from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.auth.dependencies import get_current_user
+from app.auth.dependencies import get_current_user, require_admin
+from app.chat.dependencies import get_llm_router
 from app.core.db import get_db_session
 from app.core.errors import ApiError
+from app.report.service import generate_and_save_report
 from steel_core.analysis.service import Anomaly, scan_anomalies
 from steel_core.db.models.accounts import User
 from steel_core.db.models.governance import AppConfig, DailyReport
@@ -105,7 +107,7 @@ def _report_dict(report: DailyReport) -> dict[str, Any]:
         "sources": report.sources,
         "disclaimer": report.disclaimer,
         "model": report.model,
-        "created_at": report.created_at.isoformat(),
+        "created_at": report.created_at.isoformat() if report.created_at else None,
     }
 
 
@@ -333,6 +335,19 @@ async def list_reports_endpoint(
         ).all()
     )
     return [_report_dict(report) for report in reports]
+
+
+@router.post("/reports/generate")
+async def generate_report_endpoint(
+    report_date: date | None = Query(None, alias="date"),
+    admin: User = Depends(require_admin),
+    session: AsyncSession = Depends(get_db_session),
+    llm: Any = Depends(get_llm_router),
+) -> dict[str, Any]:
+    report = await generate_and_save_report(
+        session, llm=llm, user_id=admin.id, report_date=report_date
+    )
+    return _report_dict(report)
 
 
 @router.get("/reports/{report_date}")
