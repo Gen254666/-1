@@ -9,6 +9,8 @@ from typing import Any
 
 import openpyxl
 
+from steel_core.ingest.common import ParseIssue
+
 DATE_IN_FILENAME = re.compile(r"(\d{1,2})\.(\d{1,2})")
 ISO_DATE = re.compile(r"(\d{4})-(\d{2})-(\d{2})")
 BLOCK_SEPARATORS = ("：", ":")
@@ -39,13 +41,6 @@ FIELD_LABELS = {
     "total_weight": "重量",
     "price_per_piece": "支售价",
 }
-
-
-@dataclass(frozen=True)
-class ParseIssue:
-    row_no: int | None
-    field: str | None
-    message: str
 
 
 @dataclass(frozen=True)

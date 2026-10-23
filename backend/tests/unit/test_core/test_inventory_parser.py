@@ -22,7 +22,12 @@ HEADERS = [
 ]
 
 
-def _build_workbook(path: Path, footer_date: date = date(2026, 10, 23)) -> None:
+def _build_workbook(
+    path: Path,
+    footer_date: date = date(2026, 10, 23),
+    *,
+    invalid_row: bool = True,
+) -> None:
     workbook = openpyxl.Workbook()
     sheet = workbook.active
     sheet.title = "第一页"
@@ -37,8 +42,9 @@ def _build_workbook(path: Path, footer_date: date = date(2026, 10, 23)) -> None:
     left_rows = [
         ["100*100*2.5*6m", 3550, 220, 24.93, 230, 5.662, 88.5, 25, "正大"],
         ["100*100*3.0*6m", 3500, 220, 35.0, 100, 3.5, 100.0, 25, "友发"],
-        ["100*100*3.5*6m", "bad-price", 220, 40.0, 50, 2.0, 142.0, 25, "友发"],
     ]
+    if invalid_row:
+        left_rows.append(["100*100*3.5*6m", "bad-price", 220, 40.0, 50, 2.0, 142.0, 25, "友发"])
     right_rows = [
         ["100*150*2.5*6m", 3320, 220, 54.46, 128, 6.884, 180.81, 20, "汇丰"],
         ["100*150*3.0*6m", 3320, 220, 66.19, 120, 7.943, 219.75, 12, "正大"],
