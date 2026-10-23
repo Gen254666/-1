@@ -1,0 +1,14 @@
+.git
+.github
+backend/.venv
+frontend/node_modules
+frontend/dist
+data/inbox
+data/exports
+.pgdata
+.pglogs
+.superpowers
+*.xlsx
+.env
+__pycache__
+*.pyc

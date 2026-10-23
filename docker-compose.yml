@@ -1,0 +1,89 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: steel_market
+      POSTGRES_USER: steel_agent
+      POSTGRES_PASSWORD: ${AGENT_DB_PASSWORD:?set AGENT_DB_PASSWORD}
+      MCP_DB_PASSWORD: ${MCP_DB_PASSWORD:?set MCP_DB_PASSWORD}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./deploy/init_db.sh:/docker-entrypoint-initdb.d/10-init.sh:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U steel_agent -d steel_market"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  redis:
+    image: redis:7-alpine
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - redisdata:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  mcp-server:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    command: ["uvicorn", "mcp_server.server:app", "--host", "0.0.0.0", "--port", "8001"]
+    environment:
+      ENVIRONMENT: ${ENVIRONMENT:-dev}
+      DATABASE_URL_MCP: postgresql+asyncpg://steel_mcp:${MCP_DB_PASSWORD}@postgres:5432/steel_market
+      DATABASE_URL_AGENT: postgresql+asyncpg://steel_agent:${AGENT_DB_PASSWORD}@postgres:5432/steel_market
+      REDIS_URL: redis://redis:6379/0
+      JWT_SECRET: ${JWT_SECRET:?set JWT_SECRET}
+      MCP_SERVICE_SECRET: ${MCP_SERVICE_SECRET:?set MCP_SERVICE_SECRET}
+      CHROMA_PATH: /app/chroma_data
+    volumes:
+      - chroma:/app/chroma_data
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  agent:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+    environment:
+      ENVIRONMENT: ${ENVIRONMENT:-dev}
+      DATABASE_URL_AGENT: postgresql+asyncpg://steel_agent:${AGENT_DB_PASSWORD}@postgres:5432/steel_market
+      DATABASE_URL_MCP: postgresql+asyncpg://steel_mcp:${MCP_DB_PASSWORD}@postgres:5432/steel_market
+      REDIS_URL: redis://redis:6379/0
+      JWT_SECRET: ${JWT_SECRET:?set JWT_SECRET}
+      MCP_BASE_URL: http://mcp-server:8001
+      MCP_SERVICE_SECRET: ${MCP_SERVICE_SECRET:?set MCP_SERVICE_SECRET}
+      CHROMA_PATH: /app/chroma_data
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY:-}
+      DOUBAO_API_KEY: ${DOUBAO_API_KEY:-}
+      DOUBAO_MODEL: ${DOUBAO_MODEL:-}
+      LLM_FALLBACK_ORDER: ${LLM_FALLBACK_ORDER:-claude,deepseek,doubao}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      mcp-server:
+        condition: service_started
+
+  frontend:
+    build:
+      context: .
+      dockerfile: frontend/Dockerfile
+    ports:
+      - "80:80"
+    depends_on:
+      - agent
+
+volumes:
+  pgdata:
+  redisdata:
+  chroma:

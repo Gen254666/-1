@@ -68,6 +68,38 @@ cp .env.example .env
 
 按实际环境填写 PostgreSQL 双账号、Redis、JWT 与 LLM Key。生产环境禁止使用默认密钥。
 
+## Docker 部署
+
+```bash
+cp .env.example .env
+# 填写 AGENT_DB_PASSWORD、MCP_DB_PASSWORD、JWT_SECRET、MCP_SERVICE_SECRET、LLM Key
+
+docker compose up -d postgres redis
+docker compose run --rm agent alembic upgrade head
+docker compose run --rm agent python -m steel_core.db.seed
+docker compose up -d
+```
+
+访问 `http://localhost`。MCP Server 监听内部端口 8001，Agent 8000，Chroma 数据在 `chroma` 卷。
+
+> 当前开发机未安装 Docker，因此 compose 未实际运行；本地开发请用上面的 pgserver 方案。
+
+## 备份与恢复
+
+```bash
+export DATABASE_URL_AGENT=postgresql://steel_agent:密码@localhost:5432/steel_market
+export CHROMA_PATH=./data/chroma
+./scripts/backup.sh
+```
+
+恢复数据库：
+
+```bash
+pg_restore -d "$DATABASE_URL" backups/steel_market-<时间戳>.dump
+```
+
+恢复 Chroma：解压 `backups/chroma-<时间戳>.tar.gz` 到 `CHROMA_PATH` 的父目录即可。
+
 ## 设计文档
 
 - 规格：`docs/superpowers/specs/2026-10-23-steel-market-agent-design.md`
