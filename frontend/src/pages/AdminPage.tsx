@@ -6,6 +6,7 @@ import {
   Input,
   InputNumber,
   Result,
+  Select,
   Table,
   Tabs,
   Tag,
@@ -14,7 +15,7 @@ import {
 } from "antd";
 import { useEffect, useState } from "react";
 
-import { apiGet, apiPost, apiPut, uploadFile } from "../api/client";
+import { apiDelete, apiGet, apiPost, apiPut, uploadFile } from "../api/client";
 import type { AnomalyConfig, ImportBatch, User } from "../api/types";
 import { useAuth } from "../auth/AuthContext";
 
@@ -237,6 +238,134 @@ function StatusTab() {
   );
 }
 
+function KnowledgeTab() {
+  const [documents, setDocuments] = useState<any[]>([]);
+  const [file, setFile] = useState<File | null>(null);
+  const [title, setTitle] = useState("");
+  const [docType, setDocType] = useState("policy");
+  const [effectiveDate, setEffectiveDate] = useState("");
+  const [expireDate, setExpireDate] = useState("");
+  const [uploading, setUploading] = useState(false);
+
+  const load = () => {
+    apiGet<{ documents: any[] }>("/api/admin/knowledge/documents")
+      .then((result) => setDocuments(result.documents))
+      .catch(() => setDocuments([]));
+  };
+
+  useEffect(load, []);
+
+  const upload = async () => {
+    if (!file) {
+      message.warning("请先选择文件");
+      return;
+    }
+    setUploading(true);
+    try {
+      await uploadFile("/api/admin/knowledge/documents", file, {
+        title: title || file.name.replace(/\.[^.]+$/, ""),
+        doc_type: docType,
+        effective_date: effectiveDate,
+        expire_date: expireDate,
+      });
+      message.success("知识库文档已入库");
+      setFile(null);
+      setTitle("");
+      load();
+    } catch (error) {
+      message.error((error as Error).message);
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const remove = async (docId: string) => {
+    try {
+      await apiDelete(`/api/admin/knowledge/documents/${docId}`);
+      message.success("已删除");
+      load();
+    } catch (error) {
+      message.error((error as Error).message);
+    }
+  };
+
+  return (
+    <div className="page-stack">
+      <Card title="上传知识文档">
+        <div className="page-stack">
+          <Upload
+            accept=".md,.txt,.pdf,.docx"
+            maxCount={1}
+            showUploadList={false}
+            beforeUpload={(selected) => {
+              setFile(selected as File);
+              return false;
+            }}
+          >
+            <Button icon={<UploadOutlined />}>选择 md / txt / pdf / docx</Button>
+          </Upload>
+          <span className="quote-date">{file ? file.name : "未选择文件"}</span>
+          <Input
+            placeholder="标题（默认使用文件名）"
+            value={title}
+            onChange={(event) => setTitle(event.target.value)}
+          />
+          <Select
+            value={docType}
+            onChange={setDocType}
+            style={{ maxWidth: 240 }}
+            options={[
+              { value: "policy", label: "政策摘要" },
+              { value: "industry", label: "产业链知识" },
+              { value: "terminology", label: "术语与规格" },
+              { value: "report", label: "历史日报" },
+              { value: "internal_rule", label: "内部规则" },
+            ]}
+          />
+          <Input
+            placeholder="生效日期 YYYY-MM-DD（可选）"
+            value={effectiveDate}
+            onChange={(event) => setEffectiveDate(event.target.value)}
+          />
+          <Input
+            placeholder="过期日期 YYYY-MM-DD（可选）"
+            value={expireDate}
+            onChange={(event) => setExpireDate(event.target.value)}
+          />
+          <Button type="primary" loading={uploading} onClick={() => void upload()}>
+            上传并入库
+          </Button>
+        </div>
+      </Card>
+
+      <Card title="知识库文档">
+        <Table
+          size="small"
+          rowKey="doc_id"
+          dataSource={documents}
+          pagination={false}
+          columns={[
+            { title: "标题", dataIndex: "title" },
+            { title: "类型", dataIndex: "doc_type" },
+            { title: "来源", dataIndex: "source" },
+            { title: "生效", dataIndex: "effective_date" },
+            { title: "过期", dataIndex: "expire_date" },
+            { title: "片段数", dataIndex: "chunk_count" },
+            {
+              title: "操作",
+              render: (_: unknown, row: any) => (
+                <Button size="small" danger onClick={() => void remove(row.doc_id)}>
+                  删除
+                </Button>
+              ),
+            },
+          ]}
+        />
+      </Card>
+    </div>
+  );
+}
+
 export function AdminPage() {
   const { user } = useAuth();
   if (user?.role !== "admin") {
@@ -248,6 +377,7 @@ export function AdminPage() {
       items={[
         { key: "imports", label: "导入管理", children: <ImportsTab /> },
         { key: "config", label: "异常阈值", children: <ConfigTab /> },
+        { key: "knowledge", label: "知识库", children: <KnowledgeTab /> },
         { key: "users", label: "用户管理", children: <UsersTab /> },
         { key: "status", label: "系统状态", children: <StatusTab /> },
       ]}

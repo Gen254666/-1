@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+import uuid
 from datetime import date
 from decimal import Decimal
+from functools import lru_cache
 from typing import Any
 from uuid import UUID
 
@@ -9,11 +11,21 @@ from mcp.server.fastmcp import FastMCP
 from starlette.requests import Request
 from starlette.responses import JSONResponse
 
+from app.core.config import get_settings
 from mcp_server import tools
 from mcp_server.auth import ServiceTokenError, decode_service_token
 from mcp_server.context import ToolError, require_context, user_context_var
 from mcp_server.db import mcp_session
 from mcp_server.tools import _error
+from steel_core.db.enums import Role
+from steel_core.knowledge.service import (
+    delete_document,
+    ingest_document,
+    list_documents,
+)
+from steel_core.knowledge.service import (
+    get_client as get_knowledge_client,
+)
 
 mcp = FastMCP(
     "steel-market",
@@ -227,6 +239,83 @@ async def search_knowledge(
         top_k=top_k,
         include_expired=include_expired,
     )
+
+
+@lru_cache
+def _knowledge_client() -> Any:
+    return get_knowledge_client(get_settings().chroma_path)
+
+
+def _parse_optional_date(value: Any) -> date | None:
+    if not value:
+        return None
+    try:
+        return date.fromisoformat(str(value))
+    except ValueError:
+        return None
+
+
+@mcp.custom_route("/internal/knowledge/documents", methods=["GET", "POST", "DELETE"])
+async def knowledge_documents_endpoint(request: Request) -> JSONResponse:
+    try:
+        context = require_context()
+    except ToolError as exc:
+        return JSONResponse({"code": exc.code, "message": exc.message}, status_code=401)
+    if context.role != Role.ADMIN:
+        return JSONResponse(
+            {"code": "AUTH_FORBIDDEN", "message": "需要管理员权限"},
+            status_code=403,
+        )
+
+    client = _knowledge_client()
+    collection_name = request.query_params.get("collection", "kb_public")
+
+    if request.method == "GET":
+        return JSONResponse({"documents": list_documents(client, collection_name)})
+
+    if request.method == "DELETE":
+        doc_id = request.query_params.get("doc_id", "")
+        if not doc_id:
+            return JSONResponse(
+                {"code": "INVALID_ARGUMENT", "message": "缺少 doc_id"},
+                status_code=400,
+            )
+        deleted = delete_document(client, doc_id=doc_id, collection_name=collection_name)
+        return JSONResponse({"doc_id": doc_id, "deleted_chunks": deleted})
+
+    try:
+        payload = await request.json()
+    except Exception:  # noqa: BLE001
+        return JSONResponse(
+            {"code": "INVALID_ARGUMENT", "message": "请求体不是合法 JSON"},
+            status_code=400,
+        )
+    title = str(payload.get("title", "")).strip()
+    text = str(payload.get("text", "")).strip()
+    if not title or not text:
+        return JSONResponse(
+            {"code": "INVALID_ARGUMENT", "message": "title 和 text 不能为空"},
+            status_code=400,
+        )
+    doc_id = str(payload.get("doc_id") or uuid.uuid4().hex)
+    collection = client.get_or_create_collection(collection_name)
+    try:
+        chunks = ingest_document(
+            collection,
+            doc_id=doc_id,
+            title=title,
+            text=text,
+            doc_type=str(payload.get("doc_type", "policy")),
+            source=str(payload.get("source", "")),
+            effective_date=_parse_optional_date(payload.get("effective_date")),
+            expire_date=_parse_optional_date(payload.get("expire_date")),
+        )
+    except Exception as exc:  # noqa: BLE001
+        return JSONResponse(
+            {"code": "INVALID_ARGUMENT", "message": f"入库失败: {exc}"},
+            status_code=400,
+        )
+    return JSONResponse({"doc_id": doc_id, "chunks": chunks})
 
 
 @mcp.custom_route("/healthz", methods=["GET"])

@@ -5,8 +5,10 @@ import pytest
 
 from steel_core.knowledge.service import (
     chunk_text,
+    delete_document,
     get_client,
     ingest_document,
+    list_documents,
     resolve_collections,
     search_knowledge,
 )
@@ -123,6 +125,43 @@ def test_expired_documents_are_filtered(tmp_path: Path) -> None:
     assert hidden == []
     assert visible
     assert visible[0].expire_date == "2020-01-01"
+
+
+def test_list_and_delete_documents(tmp_path: Path) -> None:
+    client = get_client(tmp_path)
+    collection = client.get_or_create_collection("kb_public")
+    ingest_document(
+        collection,
+        doc_id="policy-1",
+        title="政策摘要",
+        text="钢材出口政策。" * 20,
+        doc_type="policy",
+        source="政策文件",
+        effective_date=date(2026, 1, 1),
+        expire_date=None,
+        embedder=fake_embedder,
+    )
+    ingest_document(
+        collection,
+        doc_id="industry-1",
+        title="产业链知识",
+        text="钢材产业链包括矿山、焦化、炼钢、轧钢。" * 10,
+        doc_type="industry",
+        source="行业资料",
+        effective_date=date(2026, 1, 1),
+        expire_date=None,
+        embedder=fake_embedder,
+    )
+
+    documents = list_documents(client)
+    assert len(documents) == 2
+    assert {item["title"] for item in documents} == {"政策摘要", "产业链知识"}
+    assert all(item["chunk_count"] > 0 for item in documents)
+
+    deleted = delete_document(client, doc_id="policy-1")
+    assert deleted > 0
+    remaining = list_documents(client)
+    assert {item["doc_id"] for item in remaining} == {"industry-1"}
 
 
 def test_private_collection_is_isolated(tmp_path: Path) -> None:

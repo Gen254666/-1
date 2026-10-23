@@ -33,6 +33,7 @@ data/exports/
 *.db
 chroma_data/
 chroma/
+data/chroma/
 .pgdata/
 .pglogs/
 .pgpw

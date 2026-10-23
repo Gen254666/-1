@@ -100,6 +100,14 @@ pg_restore -d "$DATABASE_URL" backups/steel_market-<时间戳>.dump
 
 恢复 Chroma：解压 `backups/chroma-<时间戳>.tar.gz` 到 `CHROMA_PATH` 的父目录即可。
 
+## 知识库
+
+管理员进入「管理后台 → 知识库」，上传 Markdown / TXT / PDF / DOCX 文档，填写标题、类型、生效和过期日期。文档经 `bge-small-zh-v1.5` 本地向量化后写入 Chroma，对话中可通过 `search_knowledge` 检索并返回带 `[n]` 的引用。
+
+- 首次入库会自动下载嵌入模型，国内网络通过 `HF_ENDPOINT=https://hf-mirror.com` 加速
+- 过期文档默认不参与检索，管理员可在工具调用时显式包含
+- 私有知识库集合结构已预留，本期仅开放公共知识库
+
 ## 设计文档
 
 - 规格：`docs/superpowers/specs/2026-10-23-steel-market-agent-design.md`

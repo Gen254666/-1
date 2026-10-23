@@ -19,6 +19,8 @@ dependencies = [
     "prometheus-client>=0.20,<1",
     "openpyxl>=3.1.5",
     "mcp>=1.2,<2",
+    "pypdf>=6.21.2",
+    "python-docx>=1.2.0",
 ]
 
 [project.optional-dependencies]

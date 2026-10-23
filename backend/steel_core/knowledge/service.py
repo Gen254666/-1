@@ -144,6 +144,47 @@ def ingest_document(
     return len(chunks)
 
 
+def list_documents(client: Any, collection_name: str = "kb_public") -> list[dict[str, Any]]:
+    try:
+        collection = client.get_collection(collection_name)
+    except Exception:  # noqa: BLE001
+        return []
+    result = collection.get(include=["metadatas"])
+    documents: dict[str, dict[str, Any]] = {}
+    for metadata in result.get("metadatas") or []:
+        if not isinstance(metadata, dict):
+            continue
+        doc_id = metadata.get("doc_id")
+        if not doc_id:
+            continue
+        entry = documents.setdefault(
+            str(doc_id),
+            {
+                "doc_id": str(doc_id),
+                "title": str(metadata.get("title", "")),
+                "doc_type": str(metadata.get("doc_type", "")),
+                "source": str(metadata.get("source", "")),
+                "effective_date": str(metadata.get("effective_date", "")),
+                "expire_date": str(metadata.get("expire_date", "")),
+                "chunk_count": 0,
+            },
+        )
+        entry["chunk_count"] += 1
+    return sorted(documents.values(), key=lambda item: item["title"])
+
+
+def delete_document(client: Any, *, doc_id: str, collection_name: str = "kb_public") -> int:
+    try:
+        collection = client.get_collection(collection_name)
+    except Exception:  # noqa: BLE001
+        return 0
+    existing = collection.get(where={"doc_id": doc_id}, include=["metadatas"])
+    ids = existing.get("ids") or []
+    if ids:
+        collection.delete(ids=ids)
+    return len(ids)
+
+
 def search_knowledge(
     client: Any,
     *,
@@ -214,8 +255,13 @@ def search_knowledge(
 
 @lru_cache
 def _embedding_model() -> Any:
+    import os
+
     from fastembed import TextEmbedding
 
+    from app.core.config import get_settings
+
+    os.environ.setdefault("HF_ENDPOINT", get_settings().hf_endpoint)
     return TextEmbedding(model_name="BAAI/bge-small-zh-v1.5")
 
 

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import io
 import shutil
 import tempfile
 import uuid
@@ -17,6 +18,7 @@ from app.core.db import get_db_session
 from app.core.errors import ApiError
 from app.core.redis import get_redis_client
 from app.core.uploads import UploadValidationError, validate_upload
+from app.knowledge.gateway import get_knowledge_gateway
 from steel_core.analysis.thresholds import (
     AnomalyThresholds,
     ThresholdValidationError,
@@ -319,6 +321,107 @@ async def system_status_endpoint(
         else None,
         "circuit_breakers": [],
     }
+
+
+KNOWLEDGE_SUFFIXES = {".md", ".txt", ".pdf", ".docx"}
+
+
+def _extract_text(filename: str, content: bytes) -> str:
+    suffix = Path(filename).suffix.lower()
+    if suffix in {".md", ".txt"}:
+        try:
+            return content.decode("utf-8-sig")
+        except UnicodeDecodeError:
+            return content.decode("gb18030")
+    if suffix == ".pdf":
+        from pypdf import PdfReader
+
+        reader = PdfReader(io.BytesIO(content))
+        return "\n".join((page.extract_text() or "") for page in reader.pages)
+    if suffix == ".docx":
+        from docx import Document
+
+        document = Document(io.BytesIO(content))
+        return "\n".join(paragraph.text for paragraph in document.paragraphs)
+    raise ValueError("不支持的知识库文件类型")
+
+
+@admin_router.post("/knowledge/documents")
+async def upload_knowledge_document_endpoint(
+    file: UploadFile = File(...),
+    title: str | None = Form(None),
+    doc_type: str = Form("policy"),
+    effective_date: date | None = Form(None),
+    expire_date: date | None = Form(None),
+    admin: User = Depends(require_admin),
+    session: AsyncSession = Depends(get_db_session),
+    gateway: Any = Depends(get_knowledge_gateway),
+) -> dict[str, Any]:
+    filename = file.filename or "document"
+    suffix = Path(filename).suffix.lower()
+    if suffix not in KNOWLEDGE_SUFFIXES:
+        raise ApiError(400, "INVALID_UPLOAD", "知识库仅支持 md/txt/pdf/docx")
+    content = await file.read()
+    await file.close()
+    try:
+        validate_upload(filename, content)
+    except UploadValidationError as exc:
+        raise ApiError(400, "INVALID_UPLOAD", exc.message) from exc
+    try:
+        text = _extract_text(filename, content)
+    except Exception as exc:  # noqa: BLE001
+        raise ApiError(400, "INVALID_UPLOAD", f"文档解析失败: {exc}") from exc
+    if not text.strip():
+        raise ApiError(400, "INVALID_UPLOAD", "文档没有可提取文本")
+
+    doc_id = uuid.uuid4().hex
+    payload = {
+        "doc_id": doc_id,
+        "title": (title or Path(filename).stem).strip(),
+        "text": text,
+        "doc_type": doc_type,
+        "source": filename,
+        "effective_date": effective_date.isoformat() if effective_date else None,
+        "expire_date": expire_date.isoformat() if expire_date else None,
+    }
+    result = await gateway.ingest(admin, payload)
+    await write_audit(
+        session,
+        user_id=admin.id,
+        action="knowledge.upload",
+        resource_type="knowledge_document",
+        resource_id=doc_id,
+        detail={"title": payload["title"], "doc_type": doc_type},
+    )
+    await session.commit()
+    return result
+
+
+@admin_router.get("/knowledge/documents")
+async def list_knowledge_documents_endpoint(
+    admin: User = Depends(require_admin),
+    gateway: Any = Depends(get_knowledge_gateway),
+) -> dict[str, Any]:
+    return await gateway.list_documents(admin)
+
+
+@admin_router.delete("/knowledge/documents/{doc_id}")
+async def delete_knowledge_document_endpoint(
+    doc_id: str,
+    admin: User = Depends(require_admin),
+    session: AsyncSession = Depends(get_db_session),
+    gateway: Any = Depends(get_knowledge_gateway),
+) -> dict[str, Any]:
+    result = await gateway.delete(admin, doc_id)
+    await write_audit(
+        session,
+        user_id=admin.id,
+        action="knowledge.delete",
+        resource_type="knowledge_document",
+        resource_id=doc_id,
+    )
+    await session.commit()
+    return result
 
 
 @users_router.get("")

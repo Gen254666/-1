@@ -37,6 +37,7 @@ class Settings(BaseSettings):
     mcp_base_url: str = "http://localhost:8001"
     mcp_service_secret: str = DEV_MCP_SERVICE_SECRET
     chroma_path: str = "../data/chroma"
+    hf_endpoint: str = "https://hf-mirror.com"
 
     llm_fallback_order: str = "claude,deepseek,doubao"
     llm_timeout_seconds: float = 30.0
