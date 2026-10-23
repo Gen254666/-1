@@ -70,6 +70,8 @@ class InventoryRecord:
     block: str
     spec: str
     unit_price: Decimal | None
+    tax_add: Decimal | None
+    weight_per_piece: Decimal | None
     pieces: int | None
     total_weight: Decimal | None
     price_per_piece: Decimal | None
@@ -343,6 +345,8 @@ async def get_inventory(
                 block=item.block,
                 spec=item.spec,
                 unit_price=item.unit_price,
+                tax_add=item.tax_add,
+                weight_per_piece=item.weight_per_piece,
                 pieces=item.pieces,
                 total_weight=item.total_weight,
                 price_per_piece=item.price_per_piece,
