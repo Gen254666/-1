@@ -32,6 +32,8 @@ class Settings(BaseSettings):
     refresh_token_days: int = 7
     login_max_failures: int = 5
     login_lock_minutes: int = 15
+    login_rate_limit: int = 5
+    rate_limit_window_seconds: int = 60
     mcp_base_url: str = "http://localhost:8001"
     mcp_service_secret: str = DEV_MCP_SERVICE_SECRET
 

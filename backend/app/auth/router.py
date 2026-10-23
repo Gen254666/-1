@@ -11,6 +11,7 @@ from app.auth.schemas import LoginRequest, TokenResponse, UserOut
 from app.core.config import get_settings
 from app.core.db import get_db_session
 from app.core.errors import ApiError
+from app.core.rate_limit import login_rate_limit
 from app.core.redis import get_redis_client
 from steel_core.db.models.accounts import User
 
@@ -45,6 +46,7 @@ async def login(
     payload: LoginRequest,
     response: Response,
     session: AsyncSession = Depends(get_db_session),
+    _rate_limit: None = Depends(login_rate_limit),
 ) -> TokenResponse:
     result = await service.login(session, username=payload.username, password=payload.password)
     _set_refresh_cookie(response, result.refresh_token)

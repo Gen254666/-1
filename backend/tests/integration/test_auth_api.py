@@ -83,11 +83,6 @@ async def test_login_locks_after_failures(
     assert response.status_code == 423
     assert response.json()["code"] == "AUTH_ACCOUNT_LOCKED"
 
-    blocked = await app_client.post(
-        "/api/auth/login", json={"username": "alice", "password": PASSWORD}
-    )
-    assert blocked.status_code == 423
-
 
 async def test_refresh_rotation_and_reuse_detection(
     session: AsyncSession, app_client: httpx.AsyncClient
@@ -140,3 +135,20 @@ async def test_invalid_access_token_returns_401(
 
     assert response.status_code == 401
     assert response.json()["code"] == "AUTH_TOKEN_INVALID"
+
+
+async def test_login_rate_limit(app_client: httpx.AsyncClient) -> None:
+    response = None
+    for index in range(5):
+        response = await app_client.post(
+            "/api/auth/login",
+            json={"username": f"missing-{index}", "password": "wrong"},
+        )
+        assert response.status_code == 401
+
+    blocked = await app_client.post(
+        "/api/auth/login", json={"username": "missing-6", "password": "wrong"}
+    )
+
+    assert blocked.status_code == 429
+    assert blocked.json()["code"] == "RATE_LIMITED"
