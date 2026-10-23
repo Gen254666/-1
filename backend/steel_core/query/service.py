@@ -87,7 +87,7 @@ class InventoryPage:
     page_size: int
 
 
-def _visible_clause(user_id: UUID) -> ColumnElement[bool]:
+def visible_clause(user_id: UUID) -> ColumnElement[bool]:
     return or_(PricePoint.scope == PointScope.PUBLIC, PricePoint.owner_user_id == user_id)
 
 
@@ -127,7 +127,7 @@ async def list_points(
 ) -> list[PricePoint]:
     statement = (
         select(PricePoint)
-        .where(PricePoint.is_active.is_(True), _visible_clause(user_id))
+        .where(PricePoint.is_active.is_(True), visible_clause(user_id))
         .order_by(PricePoint.category, PricePoint.spec, PricePoint.region)
     )
     if category is not None:
@@ -149,7 +149,7 @@ async def get_quotes(
     page_size: int = 20,
 ) -> QuotePage:
     _validate_pagination(page, page_size)
-    visibility = _visible_clause(user_id)
+    visibility = visible_clause(user_id)
 
     if quote_date is None:
         latest_statement = (
@@ -227,7 +227,7 @@ async def get_price_history(
     statement = (
         _active_quote_select()
         .where(
-            _visible_clause(user_id),
+            visible_clause(user_id),
             MarketQuote.point_id.in_(point_ids),
             MarketQuote.quote_date >= start_date,
             MarketQuote.quote_date <= end_date,
