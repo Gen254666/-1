@@ -15,7 +15,7 @@ jobs:
       - uses: astral-sh/setup-uv@v5
         with:
           python-version: "3.12"
-      - run: uv sync --extra dev
+      - run: uv sync --extra dev --extra rag
       - run: uv run ruff check .
       - run: uv run ruff format --check .
       - run: uv run mypy .

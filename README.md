@@ -21,7 +21,7 @@ docs/             设计规格与计划
 
 ```bash
 cd backend
-uv sync --extra dev
+uv sync --extra dev --extra rag
 uv run ruff check .
 uv run ruff format --check .
 uv run mypy .

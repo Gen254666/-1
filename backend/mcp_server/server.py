@@ -210,6 +210,25 @@ async def generate_daily_report(report_date: date | None = None) -> dict[str, An
         return await tools.generate_daily_report(session, ctx, report_date=report_date)
 
 
+@mcp.tool()
+async def search_knowledge(
+    query: str,
+    collections: list[str] | None = None,
+    top_k: int = 5,
+    include_expired: bool = False,
+) -> dict[str, Any]:
+    ctx = _context()
+    if isinstance(ctx, dict):
+        return ctx
+    return tools.search_knowledge_tool(
+        ctx,
+        query=query,
+        collections=collections,
+        top_k=top_k,
+        include_expired=include_expired,
+    )
+
+
 @mcp.custom_route("/healthz", methods=["GET"])
 async def healthz(request: Request) -> JSONResponse:
     return JSONResponse({"status": "ok"})

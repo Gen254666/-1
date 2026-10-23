@@ -1,6 +1,7 @@
 import uuid
 from datetime import date, timedelta
 from decimal import Decimal
+from pathlib import Path
 from typing import Any
 
 import pytest
@@ -17,12 +18,15 @@ from mcp_server.tools import (
     get_price_history,
     get_quotes,
     scan_anomalies_tool,
+    search_knowledge_tool,
 )
 from steel_core.db.enums import DatasetType, PointScope, Role
 from steel_core.db.models.accounts import User
 from steel_core.db.models.governance import AppConfig, DailyReport, DatasetVersion
 from steel_core.db.models.inventory import InventoryItem, InventorySnapshot
 from steel_core.db.models.market import MarketQuote, PricePoint
+from steel_core.knowledge.service import get_client as get_knowledge_client
+from steel_core.knowledge.service import ingest_document as ingest_knowledge
 from steel_core.versioning.service import create_import_batch, create_version
 
 pytestmark = pytest.mark.integration
@@ -245,3 +249,54 @@ def test_require_context_without_context() -> None:
 
     with pytest.raises(ToolError):
         require_context()
+
+
+def _fake_embedder(texts: list[str]) -> list[list[float]]:
+    vectors: list[list[float]] = []
+    for text in texts:
+        vector = [0.0] * 32
+        for char in text:
+            vector[ord(char) % 32] += 1.0
+        norm = sum(value * value for value in vector) ** 0.5 or 1.0
+        vectors.append([value / norm for value in vector])
+    return vectors
+
+
+def test_search_knowledge_tool(tmp_path: Path) -> None:
+    client = get_knowledge_client(tmp_path)
+    collection = client.get_or_create_collection("kb_public")
+    ingest_knowledge(
+        collection,
+        doc_id="policy-1",
+        title="政策摘要",
+        text="钢材出口政策摘要：规范边境贸易流程。" * 5,
+        doc_type="policy",
+        source="政策文件",
+        effective_date=date(2026, 1, 1),
+        expire_date=None,
+        embedder=_fake_embedder,
+    )
+    user_id = uuid.uuid4()
+    ctx = UserContext(user_id=user_id, role=Role.USER)
+
+    result = search_knowledge_tool(
+        ctx,
+        query="出口政策",
+        collections=["kb_public"],
+        client=client,
+        embedder=_fake_embedder,
+    )
+
+    assert result["error"] is None
+    assert result["artifact"]["type"] == "text"
+    assert result["artifact"]["payload"]["citations"][0]["title"] == "政策摘要"
+    assert "[1]" in result["summary"]
+
+    forbidden = search_knowledge_tool(
+        ctx,
+        query="出口政策",
+        collections=[f"kb_private_{uuid.uuid4()}"],
+        client=client,
+        embedder=_fake_embedder,
+    )
+    assert forbidden["error"]["code"] == "PERMISSION_DENIED"

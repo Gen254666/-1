@@ -2,12 +2,14 @@ from __future__ import annotations
 
 from datetime import date, timedelta
 from decimal import Decimal
+from functools import lru_cache
 from typing import Any
 from uuid import UUID
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.config import get_settings
 from mcp_server.context import UserContext
 from steel_core.analysis.service import (
     Anomaly,
@@ -19,6 +21,8 @@ from steel_core.analysis.service import (
 )
 from steel_core.db.enums import Role
 from steel_core.db.models.governance import AppConfig, DailyReport
+from steel_core.knowledge.service import get_client as get_knowledge_client
+from steel_core.knowledge.service import search_knowledge
 from steel_core.query.service import (
     InventoryPage,
     QueryValidationError,
@@ -538,6 +542,62 @@ async def generate_daily_report(
         source="internal",
         warnings=facts.warnings,
     )
+
+
+@lru_cache
+def _knowledge_client() -> Any:
+    return get_knowledge_client(get_settings().chroma_path)
+
+
+def search_knowledge_tool(
+    ctx: UserContext,
+    *,
+    query: str,
+    collections: list[str] | None = None,
+    top_k: int = 5,
+    include_expired: bool = False,
+    client: Any | None = None,
+    embedder: Any | None = None,
+) -> dict[str, Any]:
+    if include_expired and ctx.role != Role.ADMIN:
+        return _error("PERMISSION_DENIED", "只有管理员可以检索过期文档")
+    if top_k < 1 or top_k > 10:
+        return _error("INVALID_ARGUMENT", "top_k 必须在 1 到 10 之间")
+
+    knowledge_client = client or _knowledge_client()
+    try:
+        citations = search_knowledge(
+            knowledge_client,
+            query=query,
+            collections=collections,
+            user_id=str(ctx.user_id),
+            embedder=embedder,
+            top_k=top_k,
+            include_expired=include_expired,
+        )
+    except PermissionError as exc:
+        return _error("PERMISSION_DENIED", str(exc))
+
+    payload = {
+        "citations": [
+            {
+                "index": citation.index,
+                "doc_id": citation.doc_id,
+                "title": citation.title,
+                "doc_type": citation.doc_type,
+                "effective_date": citation.effective_date,
+                "expire_date": citation.expire_date,
+                "snippet": citation.snippet,
+                "score": citation.score,
+            }
+            for citation in citations
+        ]
+    }
+    if citations:
+        summary = "；".join(f"[{citation.index}] {citation.title}" for citation in citations)
+    else:
+        summary = "未检索到相关内容"
+    return _ok(summary, "text", payload, source="knowledge")
 
 
 async def _quote_disclaimer(session: AsyncSession) -> str:

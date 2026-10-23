@@ -36,6 +36,7 @@ class Settings(BaseSettings):
     rate_limit_window_seconds: int = 60
     mcp_base_url: str = "http://localhost:8001"
     mcp_service_secret: str = DEV_MCP_SERVICE_SECRET
+    chroma_path: str = "../data/chroma"
 
     cors_origins: list[str] = ["http://localhost:5173"]
 
