@@ -4,6 +4,7 @@ import {
   FileTextOutlined,
   MessageOutlined,
   SettingOutlined,
+  TagsOutlined,
 } from "@ant-design/icons";
 import { Button, Layout, Menu, Space, Typography } from "antd";
 import { Outlet, useLocation, useNavigate } from "react-router-dom";
@@ -19,6 +20,7 @@ export function AppLayout() {
 
   const items = [
     { key: "/dashboard", icon: <DashboardOutlined />, label: "行情看板" },
+    { key: "/points", icon: <TagsOutlined />, label: "我的点位" },
     { key: "/chat", icon: <MessageOutlined />, label: "智能对话" },
     { key: "/quote", icon: <FileTextOutlined />, label: "报价单" },
     ...(user?.role === "admin"

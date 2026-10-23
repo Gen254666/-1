@@ -1,10 +1,12 @@
 from __future__ import annotations
 
 import uuid
+from datetime import date
+from decimal import Decimal
 from typing import Any
 
 from fastapi import APIRouter, Depends, Response
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -16,6 +18,7 @@ from steel_core.db.enums import PointScope, Role
 from steel_core.db.models.accounts import User
 from steel_core.db.models.market import PricePoint
 from steel_core.query.service import list_points
+from steel_core.quote.private import PrivateQuoteError, upsert_private_quote
 
 router = APIRouter(prefix="/api/points", tags=["points"])
 
@@ -37,6 +40,13 @@ class PointUpdate(BaseModel):
     source: str | None = None
     unit: str | None = None
     is_active: bool | None = None
+
+
+class PrivateQuoteCreate(BaseModel):
+    quote_date: date
+    price: Decimal = Field(gt=0)
+    change: Decimal | None = None
+    note: str | None = None
 
 
 def _point_dict(point: PricePoint) -> dict[str, Any]:
@@ -101,6 +111,53 @@ async def create_point_endpoint(
     )
     await session.commit()
     return _point_dict(point)
+
+
+@router.post("/{point_id}/quotes", status_code=201)
+async def create_private_quote_endpoint(
+    point_id: uuid.UUID,
+    payload: PrivateQuoteCreate,
+    user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_db_session),
+) -> dict[str, Any]:
+    point = await session.get(PricePoint, point_id)
+    if point is None:
+        raise ApiError(404, "NOT_FOUND", "点位不存在")
+    if point.scope != PointScope.PRIVATE or point.owner_user_id != user.id:
+        raise ApiError(403, "AUTH_FORBIDDEN", "只能为自己的私有点位录入报价")
+
+    try:
+        version = await upsert_private_quote(
+            session,
+            user_id=user.id,
+            point_id=point_id,
+            quote_date=payload.quote_date,
+            price=payload.price,
+            change=payload.change,
+            note=payload.note,
+        )
+    except PrivateQuoteError as exc:
+        raise ApiError(400, "INVALID_ARGUMENT", str(exc)) from exc
+
+    await write_audit(
+        session,
+        user_id=user.id,
+        action="private_quote.upsert",
+        resource_type="market_quote",
+        resource_id=str(point_id),
+        detail={
+            "quote_date": payload.quote_date.isoformat(),
+            "price": str(payload.price),
+        },
+    )
+    await session.commit()
+    return {
+        "version_id": str(version.id),
+        "point_id": str(point_id),
+        "quote_date": payload.quote_date.isoformat(),
+        "price": float(payload.price),
+        "change": float(payload.change) if payload.change is not None else None,
+    }
 
 
 @router.patch("/{point_id}")

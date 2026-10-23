@@ -22,6 +22,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Chroma 知识库检索、过期过滤、引用与集合权限
 - 知识库文档上传（md/txt/pdf/docx）、列表、删除与管理后台页面
 - HuggingFace 镜像配置，加速中文嵌入模型下载
+- 私有自定义点位与逐日报价录入，按用户隔离版本链
 - Agent 对话编排（Claude/DeepSeek/豆包）、SSE、熔断与日报生成
 - React 前端：登录、看板、对话、报价单、管理后台
 - Docker Compose、Nginx 配置与备份脚本

@@ -94,6 +94,13 @@ def visible_clause(user_id: UUID) -> ColumnElement[bool]:
     return or_(PricePoint.scope == PointScope.PUBLIC, PricePoint.owner_user_id == user_id)
 
 
+def version_visibility(user_id: UUID) -> ColumnElement[bool]:
+    return or_(
+        DatasetVersion.scope == PointScope.PUBLIC,
+        DatasetVersion.owner_user_id == user_id,
+    )
+
+
 def normalize_spec(spec: str) -> str:
     text = unicodedata.normalize("NFKC", spec).lower()
     for separator in ("×", "x", "X", "＊"):
@@ -137,12 +144,15 @@ def _validate_history_range(start_date: date, end_date: date) -> None:
         raise QueryValidationError(msg)
 
 
-def _active_quote_select() -> Any:
+def _active_quote_select(user_id: UUID) -> Any:
     return (
         select(MarketQuote, PricePoint)
         .join(DatasetVersion, MarketQuote.version_id == DatasetVersion.id)
         .join(PricePoint, MarketQuote.point_id == PricePoint.id)
-        .where(DatasetVersion.status == VersionStatus.ACTIVE)
+        .where(
+            DatasetVersion.status == VersionStatus.ACTIVE,
+            version_visibility(user_id),
+        )
     )
 
 
@@ -178,6 +188,7 @@ async def get_quotes(
 ) -> QuotePage:
     _validate_pagination(page, page_size)
     visibility = visible_clause(user_id)
+    versions = version_visibility(user_id)
 
     if quote_date is None:
         latest_statement = (
@@ -185,7 +196,11 @@ async def get_quotes(
             .select_from(MarketQuote)
             .join(DatasetVersion, MarketQuote.version_id == DatasetVersion.id)
             .join(PricePoint, MarketQuote.point_id == PricePoint.id)
-            .where(DatasetVersion.status == VersionStatus.ACTIVE, visibility)
+            .where(
+                DatasetVersion.status == VersionStatus.ACTIVE,
+                visibility,
+                versions,
+            )
         )
         quote_date = await session.scalar(latest_statement)
         if quote_date is None:
@@ -194,6 +209,7 @@ async def get_quotes(
     conditions: list[Any] = [
         DatasetVersion.status == VersionStatus.ACTIVE,
         visibility,
+        versions,
         MarketQuote.quote_date == quote_date,
     ]
     if category is not None:
@@ -215,7 +231,7 @@ async def get_quotes(
     )
 
     statement = (
-        _active_quote_select()
+        _active_quote_select(user_id)
         .where(*conditions)
         .order_by(PricePoint.category, PricePoint.spec, PricePoint.region, PricePoint.code)
         .offset((page - 1) * page_size)
@@ -253,7 +269,7 @@ async def get_price_history(
         raise QueryValidationError(msg)
 
     statement = (
-        _active_quote_select()
+        _active_quote_select(user_id)
         .where(
             visible_clause(user_id),
             MarketQuote.point_id.in_(point_ids),

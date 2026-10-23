@@ -7,6 +7,7 @@ import { AdminPage } from "./pages/AdminPage";
 import { ChatPage } from "./pages/ChatPage";
 import { DashboardPage } from "./pages/DashboardPage";
 import { LoginPage } from "./pages/LoginPage";
+import { PointsPage } from "./pages/PointsPage";
 import { QuotePage } from "./pages/QuotePage";
 
 function ProtectedLayout() {
@@ -28,6 +29,7 @@ export default function App() {
       <Route path="/login" element={<LoginPage />} />
       <Route element={<ProtectedLayout />}>
         <Route path="/dashboard" element={<DashboardPage />} />
+        <Route path="/points" element={<PointsPage />} />
         <Route path="/chat" element={<ChatPage />} />
         <Route path="/quote" element={<QuotePage />} />
         <Route path="/admin" element={<AdminPage />} />

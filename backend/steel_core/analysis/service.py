@@ -18,6 +18,7 @@ from steel_core.query.service import (
     get_inventory,
     get_price_history,
     get_quotes,
+    version_visibility,
     visible_clause,
 )
 
@@ -227,6 +228,7 @@ async def _recent_prices(
         .where(
             DatasetVersion.status == VersionStatus.ACTIVE,
             visible_clause(user_id),
+            version_visibility(user_id),
             MarketQuote.point_id == point_id,
             MarketQuote.quote_date <= end_date,
         )

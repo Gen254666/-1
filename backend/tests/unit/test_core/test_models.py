@@ -82,12 +82,23 @@ def test_dataset_version_has_single_active_version_per_date() -> None:
         for index in dataset_version.indexes
         if index.dialect_options["postgresql"].get("where") is not None
     ]
-    assert len(partial_indexes) == 1
-    assert partial_indexes[0].unique is True
-    assert {column.name for column in partial_indexes[0].columns} == {
+    assert len(partial_indexes) == 4
+    by_name = {str(index.name): index for index in partial_indexes}
+    public_active = by_name["uq_dataset_version_public_active"]
+    private_active = by_name["uq_dataset_version_private_active"]
+    assert public_active.unique is True
+    assert private_active.unique is True
+    assert {column.name for column in public_active.columns} == {
         "dataset_type",
         "effective_date",
     }
+    assert {column.name for column in private_active.columns} == {
+        "dataset_type",
+        "effective_date",
+        "owner_user_id",
+    }
+    assert "scope" in dataset_version.c
+    assert "owner_user_id" in dataset_version.c
 
 
 def test_json_columns_use_jsonb() -> None:

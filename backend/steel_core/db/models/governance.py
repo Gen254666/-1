@@ -4,6 +4,7 @@ import uuid
 from datetime import date, datetime
 
 from sqlalchemy import (
+    CheckConstraint,
     Date,
     DateTime,
     ForeignKey,
@@ -23,6 +24,7 @@ from steel_core.db.base import Base
 from steel_core.db.enums import (
     DatasetType,
     ImportStatus,
+    PointScope,
     VersionStatus,
     str_enum,
 )
@@ -57,24 +59,57 @@ class ImportBatch(Base):
 class DatasetVersion(Base):
     __tablename__ = "dataset_version"
     __table_args__ = (
-        UniqueConstraint(
+        CheckConstraint(
+            "(scope = 'public' AND owner_user_id IS NULL) "
+            "OR (scope = 'private' AND owner_user_id IS NOT NULL)",
+            name="owner_scope",
+        ),
+        Index(
+            "uq_dataset_version_public_no",
             "dataset_type",
             "effective_date",
             "version_no",
-            name="uq_dataset_version_type_date_no",
+            unique=True,
+            postgresql_where=text("scope = 'public'"),
         ),
         Index(
-            "uq_dataset_version_active",
+            "uq_dataset_version_private_no",
+            "dataset_type",
+            "effective_date",
+            "version_no",
+            "owner_user_id",
+            unique=True,
+            postgresql_where=text("scope = 'private'"),
+        ),
+        Index(
+            "uq_dataset_version_public_active",
             "dataset_type",
             "effective_date",
             unique=True,
-            postgresql_where=text("status = 'active'"),
+            postgresql_where=text("status = 'active' AND scope = 'public'"),
+        ),
+        Index(
+            "uq_dataset_version_private_active",
+            "dataset_type",
+            "effective_date",
+            "owner_user_id",
+            unique=True,
+            postgresql_where=text("status = 'active' AND scope = 'private'"),
         ),
     )
 
     id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
     dataset_type: Mapped[DatasetType] = mapped_column(
         str_enum(DatasetType, "dataset_type"), nullable=False
+    )
+    scope: Mapped[PointScope] = mapped_column(
+        str_enum(PointScope, "point_scope"),
+        default=PointScope.PUBLIC,
+        server_default=text("'public'"),
+        nullable=False,
+    )
+    owner_user_id: Mapped[uuid.UUID | None] = mapped_column(
+        Uuid(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), index=True
     )
     effective_date: Mapped[date] = mapped_column(Date, nullable=False)
     version_no: Mapped[int] = mapped_column(Integer, nullable=False)
