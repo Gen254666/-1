@@ -7,7 +7,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth import service
 from app.auth.dependencies import get_current_user
-from app.auth.schemas import LoginRequest, TokenResponse, UserOut
+from app.auth.schemas import (
+    ChangePasswordRequest,
+    LoginRequest,
+    TokenResponse,
+    UserOut,
+)
 from app.core.config import get_settings
 from app.core.db import get_db_session
 from app.core.errors import ApiError
@@ -83,6 +88,21 @@ async def logout(
     response = Response(status_code=204)
     response.delete_cookie(REFRESH_COOKIE, path=COOKIE_PATH)
     return response
+
+
+@router.post("/change-password", status_code=204)
+async def change_password(
+    payload: ChangePasswordRequest,
+    user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_db_session),
+) -> Response:
+    await service.change_password(
+        session,
+        user=user,
+        old_password=payload.old_password,
+        new_password=payload.new_password,
+    )
+    return Response(status_code=204)
 
 
 @router.get("/me", response_model=UserOut)

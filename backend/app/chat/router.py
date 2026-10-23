@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import logging
 from collections.abc import AsyncIterator
 from datetime import UTC, datetime
 from typing import Any
@@ -25,6 +26,7 @@ from steel_core.db.enums import MessageRole
 from steel_core.db.models.accounts import ChatMessage, ChatSession, User
 
 router = APIRouter(prefix="/api/chat", tags=["chat"])
+logger = logging.getLogger("app.chat")
 
 
 class ChatRequest(BaseModel):
@@ -199,8 +201,9 @@ async def stream_endpoint(
             await _persist_assistant(session_factory, chat_session_id, text, [], [])
             yield _sse("done", {"session_id": str(chat_session_id)})
             return
-        except Exception as exc:  # noqa: BLE001
-            text = f"查询失败：{exc}"
+        except Exception:  # noqa: BLE001
+            logger.exception("chat orchestration failed")
+            text = "查询失败，请稍后再试。"
             yield _sse("error", {"code": "UPSTREAM_ERROR", "message": text})
             await _persist_assistant(session_factory, chat_session_id, text, [], [])
             yield _sse("done", {"session_id": str(chat_session_id)})

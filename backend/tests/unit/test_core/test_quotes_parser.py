@@ -82,6 +82,17 @@ def test_duplicate_point_date_is_error(tmp_path: Path) -> None:
     assert any("重复" in error.message for error in result.errors)
 
 
+def test_gbk_encoded_csv_is_supported(tmp_path: Path) -> None:
+    path = tmp_path / "quotes.csv"
+    content = "point_id,date,price,change,source,note\nP1,2026-10-23,3550,,mysteel,备注\n"
+    path.write_bytes(content.encode("gb18030"))
+
+    result = parse_quote_csv(path, allowed_point_codes={"P1"})
+
+    assert len(result.rows) == 1
+    assert result.rows[0].note == "备注"
+
+
 def test_bom_prefixed_header_is_supported(tmp_path: Path) -> None:
     path = tmp_path / "quotes.csv"
     _write_csv(

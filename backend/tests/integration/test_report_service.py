@@ -76,6 +76,27 @@ async def _seed(session: AsyncSession) -> User:
             source="mysteel",
         )
     )
+    private = PricePoint(
+        scope=PointScope.PRIVATE,
+        owner_user_id=user.id,
+        code="PRIVATE",
+        category="方管",
+        spec="100*100*2.5*6m",
+        region="昆明",
+        source="manual",
+        unit="元/吨",
+    )
+    session.add(private)
+    await session.flush()
+    session.add(
+        MarketQuote(
+            version_id=version.id,
+            point_id=private.id,
+            quote_date=TODAY,
+            price=Decimal("9999"),
+            source="manual",
+        )
+    )
 
     inventory_batch = await create_import_batch(
         session,
@@ -138,6 +159,7 @@ async def test_generate_and_save_report(session: AsyncSession) -> None:
     assert report.markdown.startswith("# 今日行情")
     assert report.disclaimer == "报告免责"
     assert llm.calls == 1
+    assert all(source.get("code") != "PRIVATE" for source in report.sources)
 
     second = await generate_and_save_report(session, llm=llm, user_id=user.id, report_date=TODAY)
     assert second.version_no == 2

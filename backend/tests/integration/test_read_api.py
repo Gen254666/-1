@@ -207,7 +207,7 @@ async def test_inventory_dashboard_and_quote_generate(
         "/api/quote/generate",
         headers=headers,
         json={
-            "spec": "100*100*2.5*6m",
+            "spec": "100×100×2.5×6m",
             "pieces": 10,
             "freight": 100,
             "processing_fee": 50,

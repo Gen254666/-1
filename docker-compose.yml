@@ -51,7 +51,17 @@ services:
     build:
       context: .
       dockerfile: backend/Dockerfile
-    command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+    command:
+      [
+        "uvicorn",
+        "app.main:app",
+        "--host",
+        "0.0.0.0",
+        "--port",
+        "8000",
+        "--proxy-headers",
+        "--forwarded-allow-ips=*",
+      ]
     environment:
       ENVIRONMENT: ${ENVIRONMENT:-dev}
       DATABASE_URL_AGENT: postgresql+asyncpg://steel_agent:${AGENT_DB_PASSWORD}@postgres:5432/steel_market

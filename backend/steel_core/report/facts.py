@@ -9,7 +9,9 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from steel_core.analysis.service import Anomaly, SpreadSeries, calculate_spread, scan_anomalies
+from steel_core.db.enums import PointScope
 from steel_core.db.models.governance import AppConfig
+from steel_core.db.models.market import PricePoint
 from steel_core.query.service import (
     InventoryPage,
     QuoteRecord,
@@ -52,6 +54,23 @@ async def build_daily_report_facts(
     quotes = await _load_quotes(session, user_id=user_id, report_date=report_date)
     inventory = await get_inventory(session, page_size=100)
     anomalies = await scan_anomalies(session, user_id=user_id, quote_date=report_date)
+
+    public_ids = set(
+        (
+            await session.scalars(
+                select(PricePoint.id).where(
+                    PricePoint.scope == PointScope.PUBLIC,
+                    PricePoint.is_active.is_(True),
+                )
+            )
+        ).all()
+    )
+    quotes = [quote for quote in quotes if quote.point_id in public_ids]
+    anomalies = [
+        anomaly
+        for anomaly in anomalies
+        if anomaly.point_id is None or anomaly.point_id in public_ids
+    ]
 
     as_of = report_date
     if as_of is None and quotes:

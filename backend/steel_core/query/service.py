@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import unicodedata
 from dataclasses import dataclass
 from datetime import date
 from decimal import Decimal
@@ -91,6 +92,31 @@ class InventoryPage:
 
 def visible_clause(user_id: UUID) -> ColumnElement[bool]:
     return or_(PricePoint.scope == PointScope.PUBLIC, PricePoint.owner_user_id == user_id)
+
+
+def normalize_spec(spec: str) -> str:
+    text = unicodedata.normalize("NFKC", spec).lower()
+    for separator in ("×", "x", "X", "＊"):
+        text = text.replace(separator, "*")
+    return "".join(text.split())
+
+
+async def find_inventory_item(
+    session: AsyncSession,
+    *,
+    spec: str,
+    category: str | None = None,
+) -> InventoryRecord | None:
+    target = normalize_spec(spec)
+    page = 1
+    while True:
+        result = await get_inventory(session, category=category, page=page, page_size=MAX_PAGE_SIZE)
+        for item in result.items:
+            if normalize_spec(item.spec) == target and item.unit_price is not None:
+                return item
+        if page * MAX_PAGE_SIZE >= result.total or not result.items:
+            return None
+        page += 1
 
 
 def _validate_pagination(page: int, page_size: int) -> None:

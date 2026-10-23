@@ -39,8 +39,18 @@ def test_prod_accepts_explicit_secrets() -> None:
     settings = Settings(  # type: ignore[call-arg]
         _env_file=None,
         environment="prod",
-        jwt_secret="prod-jwt-secret",
-        mcp_service_secret="prod-mcp-secret",
+        jwt_secret="prod-jwt-secret-0123456789abcdef",
+        mcp_service_secret="prod-mcp-secret-0123456789abcdef",
     )
 
     assert settings.environment == "prod"
+
+
+def test_prod_rejects_placeholder_secret() -> None:
+    with pytest.raises(ValidationError):
+        Settings(  # type: ignore[call-arg]
+            _env_file=None,
+            environment="prod",
+            jwt_secret="CHANGE_ME",
+            mcp_service_secret="prod-mcp-secret-0123456789abcdef",
+        )

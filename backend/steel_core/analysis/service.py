@@ -124,9 +124,9 @@ async def scan_anomalies(
             name = f"{quote.category} {quote.spec} {quote.region}"
             anomalies.extend(_price_anomalies(quote.point_id, name, prices, thresholds))
 
-    inventory = await get_inventory(session, category=category, page_size=100)
-    if inventory.snapshot_date is not None:
-        for item in inventory.items:
+    snapshot_date, _, inventory_items = await _all_inventory_items(session, category=category)
+    if snapshot_date is not None:
+        for item in inventory_items:
             if item.pieces is None:
                 continue
             name = f"{item.block} {item.spec}"
@@ -148,7 +148,7 @@ async def scan_anomalies(
             deviation = await _inventory_deviation(
                 session,
                 spec=item.spec,
-                snapshot_date=inventory.snapshot_date,
+                snapshot_date=snapshot_date,
                 current_pieces=item.pieces,
             )
             if deviation is not None and deviation >= thresholds.inventory_deviation_pct:
@@ -167,6 +167,24 @@ async def scan_anomalies(
                 )
 
     return anomalies
+
+
+async def _all_inventory_items(
+    session: AsyncSession, *, category: str | None
+) -> tuple[date | None, str | None, list[Any]]:
+    page = 1
+    items: list[Any] = []
+    snapshot_date: date | None = None
+    warehouse: str | None = None
+    while True:
+        page_result = await get_inventory(session, category=category, page=page, page_size=100)
+        if snapshot_date is None:
+            snapshot_date = page_result.snapshot_date
+            warehouse = page_result.warehouse
+        items.extend(page_result.items)
+        if len(items) >= page_result.total or not page_result.items:
+            return snapshot_date, warehouse, items
+        page += 1
 
 
 async def _load_all_quotes(

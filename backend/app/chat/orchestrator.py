@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import json
 from dataclasses import dataclass, field
 from typing import Any, Protocol
@@ -73,11 +74,11 @@ async def run_chat(
     max_calls: int = 8,
 ) -> ChatResult:
     tools = await mcp.list_tools()
-    tool_names = [tool.get("name") for tool in tools if tool.get("name")]
+    tools_json = json.dumps(tools, ensure_ascii=False)
     messages: list[dict[str, str]] = [
         {
             "role": "system",
-            "content": SYSTEM_PROMPT + f"\n可用工具: {', '.join(str(name) for name in tool_names)}",
+            "content": SYSTEM_PROMPT + f"\n工具清单（含参数 schema）: {tools_json[:6000]}",
         },
         *_trim_history(history),
         {"role": "user", "content": message},
@@ -103,7 +104,20 @@ async def run_chat(
         arguments = decision.get("arguments") or {}
         if not isinstance(arguments, dict):
             arguments = {}
-        result = await mcp.call_tool(str(tool_name), arguments)
+        try:
+            result = await asyncio.wait_for(mcp.call_tool(str(tool_name), arguments), timeout=10)
+        except Exception as exc:  # noqa: BLE001
+            result = {
+                "summary": "",
+                "artifact": None,
+                "meta": {},
+                "error": {
+                    "code": "UPSTREAM_ERROR",
+                    "message": f"工具调用失败: {exc}",
+                    "details": {},
+                    "retryable": False,
+                },
+            }
         tool_calls.append(ToolCallRecord(name=str(tool_name), arguments=arguments, result=result))
         artifact = result.get("artifact")
         if isinstance(artifact, dict):

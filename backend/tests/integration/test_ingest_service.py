@@ -3,6 +3,7 @@ from datetime import date
 from pathlib import Path
 from typing import Any
 
+import openpyxl
 import pytest
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -183,6 +184,60 @@ async def test_import_inventory_creates_snapshot_and_items(
     assert snapshot.snapshot_date == EFFECTIVE_DATE
     assert snapshot.warehouse == "昆明宝象库"
     assert snapshot.version_id == outcome.version_id
+
+
+async def test_reordered_quotes_are_no_changes(session: AsyncSession, tmp_path: Path) -> None:
+    user = await _make_user(session)
+    first = await _make_point(session, "P1")
+    second = await _make_point(session, "P2")
+    first_path = tmp_path / "first.csv"
+    second_path = tmp_path / "second.csv"
+    _write_quotes(
+        first_path,
+        "point_id,date,price,change,source,note\n"
+        "P1,2026-10-23,3550,,mysteel,\n"
+        "P2,2026-10-23,3480,,mysteel,\n",
+    )
+    _write_quotes(
+        second_path,
+        "point_id,date,price,change,source,note\n"
+        "P2,2026-10-23,3480,,mysteel,\n"
+        "P1,2026-10-23,3550,,mysteel,\n",
+    )
+    allowed = {"P1": first.id, "P2": second.id}
+
+    first_outcome = await import_quotes(
+        session, user_id=user.id, path=first_path, allowed_points=allowed
+    )
+    second_outcome = await import_quotes(
+        session, user_id=user.id, path=second_path, allowed_points=allowed
+    )
+
+    assert not first_outcome.no_changes
+    assert second_outcome.no_changes
+    assert await _count(session, DatasetVersion) == 1
+
+
+async def test_unparseable_inventory_records_failed_batch(
+    session: AsyncSession, tmp_path: Path
+) -> None:
+    user = await _make_user(session)
+    path = tmp_path / "empty.xlsx"
+    openpyxl.Workbook().save(path)
+
+    with pytest.raises(ImportValidationError) as exc_info:
+        await import_inventory(
+            session,
+            user_id=user.id,
+            path=path,
+            explicit_date=EFFECTIVE_DATE,
+        )
+
+    batch = await session.get(ImportBatch, exc_info.value.batch_id)
+    assert batch is not None
+    assert batch.status == ImportStatus.FAILED
+    assert await _count(session, InventorySnapshot) == 0
+    assert await _count(session, DatasetVersion) == 0
 
 
 async def test_invalid_inventory_records_failed_batch(

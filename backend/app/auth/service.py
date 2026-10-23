@@ -13,7 +13,7 @@ from app.auth.jwt import TokenError, create_token, decode_token
 from app.core.config import get_settings
 from app.core.errors import ApiError
 from steel_core.db.models.accounts import User, UserSession
-from steel_core.security import verify_password
+from steel_core.security import hash_password, verify_password
 
 
 @dataclass
@@ -120,6 +120,20 @@ async def logout(
         if stored is not None and stored.revoked_at is None:
             stored.revoked_at = datetime.now(UTC)
             await session.commit()
+
+
+async def change_password(
+    session: AsyncSession,
+    *,
+    user: User,
+    old_password: str,
+    new_password: str,
+) -> None:
+    if not verify_password(user.password_hash, old_password):
+        raise ApiError(400, "INVALID_PASSWORD", "原密码错误")
+    user.password_hash = hash_password(new_password)
+    user.must_change_password = False
+    await session.commit()
 
 
 async def _issue_tokens(session: AsyncSession, user: User) -> AuthResult:

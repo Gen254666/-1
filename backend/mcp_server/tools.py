@@ -27,6 +27,7 @@ from steel_core.query.service import (
     InventoryPage,
     QueryValidationError,
     QuoteRecord,
+    find_inventory_item,
     list_points,
 )
 from steel_core.query.service import (
@@ -405,17 +406,8 @@ async def generate_quote_tool(
     if not chosen_spec:
         return _error("INVALID_ARGUMENT", "必须提供 point_id 或 spec")
 
-    inventory = await query_inventory(session, page_size=100)
-    item = next(
-        (
-            entry
-            for entry in inventory.items
-            if entry.spec == chosen_spec
-            and entry.unit_price is not None
-            and entry.weight_per_piece is not None
-        ),
-        None,
-    )
+    inventory = await query_inventory(session, page_size=1)
+    item = await find_inventory_item(session, spec=chosen_spec)
     if item is None or item.unit_price is None or item.weight_per_piece is None:
         return _error("DATA_UNAVAILABLE", f"库存中找不到可用规格: {chosen_spec}")
 

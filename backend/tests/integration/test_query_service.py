@@ -12,6 +12,7 @@ from steel_core.db.models.inventory import InventoryItem, InventorySnapshot
 from steel_core.db.models.market import MarketQuote, PricePoint
 from steel_core.query.service import (
     QueryValidationError,
+    find_inventory_item,
     get_inventory,
     get_price_history,
     get_quotes,
@@ -285,6 +286,11 @@ async def test_get_inventory_filters_and_paginates(session: AsyncSession) -> Non
     paged = await get_inventory(session, page=2, page_size=1)
     assert paged.total == 2
     assert len(paged.items) == 1
+
+    found = await find_inventory_item(session, spec="100×150×2.5×6m")
+    assert found is not None
+    assert found.spec == "100*150*2.5*6m"
+    assert found.unit_price == Decimal("3320")
 
 
 async def test_get_inventory_without_snapshot(session: AsyncSession) -> None:

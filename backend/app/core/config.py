@@ -57,12 +57,17 @@ class Settings(BaseSettings):
     @model_validator(mode="after")
     def _validate_prod_secrets(self) -> "Settings":
         if self.environment == "prod":
-            if self.jwt_secret == DEV_JWT_SECRET:
-                msg = "JWT_SECRET must be set to a non-default value in production"
-                raise ValueError(msg)
-            if self.mcp_service_secret == DEV_MCP_SERVICE_SECRET:
-                msg = "MCP_SERVICE_SECRET must be set to a non-default value in production"
-                raise ValueError(msg)
+            for name, value in (
+                ("JWT_SECRET", self.jwt_secret),
+                ("MCP_SERVICE_SECRET", self.mcp_service_secret),
+            ):
+                if (
+                    value in {DEV_JWT_SECRET, DEV_MCP_SERVICE_SECRET}
+                    or value.startswith("CHANGE_ME")
+                    or len(value) < 32
+                ):
+                    msg = f"{name} must be a non-placeholder value of at least 32 characters in production"
+                    raise ValueError(msg)
         return self
 
 

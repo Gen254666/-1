@@ -91,6 +91,24 @@ async def test_run_chat_reports_tool_error_to_llm() -> None:
     assert "没有数据" in result.warnings
 
 
+async def test_run_chat_survives_tool_exception() -> None:
+    class RaisingMCP(FakeMCP):
+        async def call_tool(self, name: str, arguments: dict[str, Any]) -> dict[str, Any]:
+            raise RuntimeError("mcp down")
+
+    llm = FakeLLM(
+        [
+            '{"tool": "get_quotes", "arguments": {}}',
+            '{"final": "查询失败，请稍后再试"}',
+        ]
+    )
+
+    result = await run_chat(llm=llm, mcp=RaisingMCP(), message="查价")
+
+    assert result.text == "查询失败，请稍后再试"
+    assert any("工具调用失败" in warning for warning in result.warnings)
+
+
 async def test_run_chat_accepts_fenced_json() -> None:
     llm = FakeLLM(['```json\n{"final": "完成"}\n```'])
     mcp = FakeMCP()

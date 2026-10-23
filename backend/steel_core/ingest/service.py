@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from dataclasses import asdict, dataclass, field
 from datetime import date
 from pathlib import Path
@@ -58,6 +59,16 @@ def _file_hash(path: Path) -> str:
     return compute_checksum(path.read_bytes())
 
 
+def _stable_rows(rows: list[Any]) -> list[dict[str, Any]]:
+    normalized = [
+        {key: value for key, value in asdict(row).items() if key != "row_no"} for row in rows
+    ]
+    return sorted(
+        normalized,
+        key=lambda item: json.dumps(item, ensure_ascii=False, sort_keys=True, default=str),
+    )
+
+
 async def _record_failed_batch(
     session: AsyncSession,
     *,
@@ -96,12 +107,26 @@ async def import_quotes(
     expected_point_codes: set[str] | None = None,
     default_source: str = "mysteel",
 ) -> ImportOutcome:
-    parsed = parse_quote_csv(
-        path,
-        allowed_point_codes=set(allowed_points),
-        expected_point_codes=expected_point_codes,
-        default_source=default_source,
-    )
+    try:
+        parsed = parse_quote_csv(
+            path,
+            allowed_point_codes=set(allowed_points),
+            expected_point_codes=expected_point_codes,
+            default_source=default_source,
+        )
+    except Exception as exc:  # noqa: BLE001
+        errors = [ParseIssue(None, None, f"文件解析失败: {exc}")]
+        batch = await _record_failed_batch(
+            session,
+            user_id=user_id,
+            dataset_type=DatasetType.MARKET_QUOTE,
+            effective_date=date.today(),
+            path=path,
+            rows_total=0,
+            rows_ok=0,
+            errors=errors,
+        )
+        raise ImportValidationError(batch.id, errors) from exc
 
     if not parsed.rows and not parsed.errors:
         parsed.errors.append(ParseIssue(None, None, "CSV 无有效数据"))
@@ -124,7 +149,7 @@ async def import_quotes(
         )
         raise ImportValidationError(batch.id, parsed.errors)
 
-    checksum = compute_checksum({"rows": [asdict(row) for row in parsed.rows]})
+    checksum = compute_checksum({"rows": _stable_rows(parsed.rows)})
     batch = await create_import_batch(
         session,
         user_id=user_id,
@@ -207,7 +232,21 @@ async def import_inventory(
     explicit_date: date | None = None,
     warehouse: str | None = None,
 ) -> ImportOutcome:
-    parsed = parse_inventory_workbook(path, explicit_date=explicit_date)
+    try:
+        parsed = parse_inventory_workbook(path, explicit_date=explicit_date)
+    except Exception as exc:  # noqa: BLE001
+        errors = [ParseIssue(None, None, f"文件解析失败: {exc}")]
+        batch = await _record_failed_batch(
+            session,
+            user_id=user_id,
+            dataset_type=DatasetType.INVENTORY,
+            effective_date=explicit_date or date.today(),
+            path=path,
+            rows_total=0,
+            rows_ok=0,
+            errors=errors,
+        )
+        raise ImportValidationError(batch.id, errors) from exc
 
     if parsed.effective_date is None:
         parsed.errors.append(ParseIssue(None, "生效日期", "无法确定生效日期"))
@@ -235,7 +274,7 @@ async def import_inventory(
         {
             "warehouse": warehouse_name,
             "effective_date": parsed.effective_date.isoformat(),
-            "rows": [asdict(row) for row in parsed.rows],
+            "rows": _stable_rows(parsed.rows),
         }
     )
     batch = await create_import_batch(

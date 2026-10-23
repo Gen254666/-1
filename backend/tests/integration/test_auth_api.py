@@ -126,6 +126,30 @@ async def test_logout_revokes_refresh(session: AsyncSession, app_client: httpx.A
     assert response.status_code == 401
 
 
+async def test_change_password(session: AsyncSession, app_client: httpx.AsyncClient) -> None:
+    await _create_user(session)
+    payload = await _login(app_client)
+
+    changed = await app_client.post(
+        "/api/auth/change-password",
+        headers={"Authorization": f"Bearer {payload['access_token']}"},
+        json={"old_password": PASSWORD, "new_password": "new-secret-123"},
+    )
+    assert changed.status_code == 204
+
+    new_login = await app_client.post(
+        "/api/auth/login",
+        json={"username": "alice", "password": "new-secret-123"},
+    )
+    assert new_login.status_code == 200
+
+    old_login = await app_client.post(
+        "/api/auth/login",
+        json={"username": "alice", "password": PASSWORD},
+    )
+    assert old_login.status_code == 401
+
+
 async def test_invalid_access_token_returns_401(
     app_client: httpx.AsyncClient,
 ) -> None:
