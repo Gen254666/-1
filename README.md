@@ -28,6 +28,28 @@ uv run mypy .
 uv run pytest
 ```
 
+### 本地 PostgreSQL（Windows 开发）
+
+本机使用 `pgserver` 自带的 PostgreSQL 16 二进制，数据目录放在英文路径，端口 `55432`：
+
+```bash
+PG_ROOT="$LOCALAPPDATA/steel-market-pg"
+"$PG_ROOT/pginstall/bin/pg_ctl.exe" -D "$PG_ROOT/data" start
+"$PG_ROOT/pginstall/bin/pg_ctl.exe" -D "$PG_ROOT/data" stop
+```
+
+`.env` 中的 `DATABASE_URL_AGENT` / `DATABASE_URL_MCP` 指向该实例。生产环境使用标准 PostgreSQL，不使用此开发集群。
+
+首次初始化：
+
+```bash
+cd backend
+uv run alembic upgrade head
+uv run python -m steel_core.db.seed
+```
+
+开发环境默认管理员为 `admin` / `ChangeMe123!`，首次登录必须修改。生产环境通过 `INITIAL_ADMIN_PASSWORD` 注入初始密码。
+
 ## 环境变量
 
 ```bash

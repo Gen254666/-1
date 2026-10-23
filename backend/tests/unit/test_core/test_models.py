@@ -31,6 +31,7 @@ def test_users_use_uuid_primary_key_and_unique_username() -> None:
     assert isinstance(users.c.id.type, Uuid)
     assert users.c.id.primary_key
     assert users.c.username.unique is True
+    assert "must_change_password" in users.c
     created_at_type = users.c.created_at.type
     assert isinstance(created_at_type, DateTime)
     assert created_at_type.timezone is True
