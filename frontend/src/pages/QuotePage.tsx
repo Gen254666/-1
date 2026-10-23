@@ -1,9 +1,11 @@
+import { DownloadOutlined } from "@ant-design/icons";
 import { Button, Card, Form, InputNumber, Select, message } from "antd";
 import { useState } from "react";
 
 import { apiPost } from "../api/client";
 import type { QuoteResult } from "../api/types";
 import { ArtifactRenderer } from "../components/ArtifactRenderer";
+import { downloadText, quoteToMarkdown } from "../utils/export";
 
 export function QuotePage() {
   const [result, setResult] = useState<QuoteResult | null>(null);
@@ -65,7 +67,20 @@ export function QuotePage() {
       </Card>
 
       {result ? (
-        <ArtifactRenderer artifact={{ type: "quote", payload: result }} />
+        <div className="page-stack">
+          <Button
+            icon={<DownloadOutlined />}
+            onClick={() =>
+              downloadText(
+                `报价单-${result.valid_until}.md`,
+                quoteToMarkdown(result),
+              )
+            }
+          >
+            导出 Markdown
+          </Button>
+          <ArtifactRenderer artifact={{ type: "quote", payload: result }} />
+        </div>
       ) : null}
     </div>
   );
