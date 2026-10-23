@@ -10,6 +10,7 @@ from app.core.config import get_settings
 from app.core.errors import ApiError
 from app.core.logging import configure_logging
 from app.core.middleware import RequestContextMiddleware
+from app.observability.router import router as observability_router
 
 
 def create_app() -> FastAPI:
@@ -42,6 +43,7 @@ def create_app() -> FastAPI:
     app.include_router(points_router)
     app.include_router(admin_router)
     app.include_router(users_router)
+    app.include_router(observability_router)
 
     @app.get("/healthz")
     async def healthz() -> dict[str, str]:

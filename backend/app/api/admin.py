@@ -9,7 +9,7 @@ from typing import Any
 
 from fastapi import APIRouter, Depends, File, Form, UploadFile
 from pydantic import BaseModel, Field
-from sqlalchemy import select
+from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth.dependencies import require_admin
@@ -25,7 +25,7 @@ from steel_core.analysis.thresholds import (
 )
 from steel_core.audit.service import write_audit
 from steel_core.cache.service import Cache
-from steel_core.db.enums import Role
+from steel_core.db.enums import ImportStatus, Role
 from steel_core.db.models.accounts import User
 from steel_core.db.models.governance import AppConfig, ImportBatch
 from steel_core.ingest.service import (
@@ -277,6 +277,48 @@ async def update_anomaly_config_endpoint(
     )
     await session.commit()
     return value
+
+
+@admin_router.get("/system/status")
+async def system_status_endpoint(
+    _user: User = Depends(require_admin),
+    session: AsyncSession = Depends(get_db_session),
+    redis: Any | None = Depends(get_redis_client),
+) -> dict[str, Any]:
+    database = "ok"
+    try:
+        await session.execute(text("SELECT 1"))
+    except Exception:  # noqa: BLE001
+        database = "error"
+
+    redis_status = "unavailable"
+    if redis is not None:
+        try:
+            await redis.ping()
+            redis_status = "ok"
+        except Exception:  # noqa: BLE001
+            redis_status = "error"
+
+    last_import = await session.scalar(
+        select(ImportBatch)
+        .where(ImportBatch.status == ImportStatus.SUCCESS)
+        .order_by(ImportBatch.created_at.desc())
+        .limit(1)
+    )
+
+    return {
+        "database": database,
+        "redis": redis_status,
+        "last_successful_import": {
+            "id": str(last_import.id),
+            "dataset_type": last_import.dataset_type.value,
+            "effective_date": last_import.effective_date.isoformat(),
+            "created_at": last_import.created_at.isoformat(),
+        }
+        if last_import is not None
+        else None,
+        "circuit_breakers": [],
+    }
 
 
 @users_router.get("")
