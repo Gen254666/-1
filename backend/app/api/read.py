@@ -14,6 +14,7 @@ from app.auth.dependencies import get_current_user, require_admin
 from app.chat.dependencies import get_llm_router
 from app.core.db import get_db_session
 from app.core.errors import ApiError
+from app.core.rate_limit import data_rate_limit
 from app.report.service import generate_and_save_report
 from steel_core.analysis.service import Anomaly, scan_anomalies
 from steel_core.db.models.accounts import User
@@ -30,7 +31,7 @@ from steel_core.query.service import (
 )
 from steel_core.quote.service import QuoteValidationError, calculate_quote
 
-router = APIRouter(prefix="/api", tags=["read"])
+router = APIRouter(prefix="/api", tags=["read"], dependencies=[Depends(data_rate_limit)])
 
 DEFAULT_QUOTE_DISCLAIMER = "本报价基于当日库存与行情数据生成，仅供参考，最终成交价以合同为准。"
 

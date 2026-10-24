@@ -5,6 +5,7 @@ from decimal import Decimal
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.llm.providers import AllProvidersFailed
 from app.report.service import generate_and_save_report
 from steel_core.db.enums import DatasetType, PointScope, Role
 from steel_core.db.models.accounts import User
@@ -163,3 +164,20 @@ async def test_generate_and_save_report(session: AsyncSession) -> None:
 
     second = await generate_and_save_report(session, llm=llm, user_id=user.id, report_date=TODAY)
     assert second.version_no == 2
+
+
+async def test_generate_report_falls_back_to_facts(session: AsyncSession) -> None:
+    user = await _seed(session)
+
+    class FailingLLM:
+        async def complete(self, messages: list[dict[str, str]]) -> str:
+            raise AllProvidersFailed("all down")
+
+    report = await generate_and_save_report(
+        session, llm=FailingLLM(), user_id=user.id, report_date=TODAY
+    )
+
+    assert report.model == "facts-only"
+    assert "事实稿" in report.markdown
+    assert "3550" in report.markdown
+    assert report.disclaimer == "报告免责"

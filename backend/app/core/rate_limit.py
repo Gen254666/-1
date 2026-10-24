@@ -7,9 +7,11 @@ from typing import Any
 
 from fastapi import Depends, Request
 
+from app.auth.dependencies import get_current_user
 from app.core.config import get_settings
 from app.core.errors import ApiError
 from app.core.redis import get_redis_client
+from steel_core.db.models.accounts import User
 
 
 class RateLimiter:
@@ -86,3 +88,19 @@ async def login_rate_limit(
     )
     if not allowed:
         raise ApiError(429, "RATE_LIMITED", "请求过于频繁，请稍后再试")
+
+
+async def data_rate_limit(
+    user: User = Depends(get_current_user),
+    redis: Any | None = Depends(get_redis_client),
+) -> None:
+    settings = get_settings()
+    limiter = RateLimiter(redis)
+    allowed = await limiter.allow(
+        scope="data",
+        identifier=str(user.id),
+        limit=settings.data_rate_limit,
+        window_seconds=settings.rate_limit_window_seconds,
+    )
+    if not allowed:
+        raise ApiError(429, "RATE_LIMITED", "数据请求过于频繁，请稍后再试")

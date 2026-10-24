@@ -33,6 +33,7 @@ class Settings(BaseSettings):
     login_max_failures: int = 5
     login_lock_minutes: int = 15
     login_rate_limit: int = 5
+    data_rate_limit: int = 120
     rate_limit_window_seconds: int = 60
     mcp_base_url: str = "http://localhost:8001"
     mcp_service_secret: str = DEV_MCP_SERVICE_SECRET

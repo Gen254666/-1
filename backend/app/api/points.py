@@ -13,6 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.auth.dependencies import get_current_user
 from app.core.db import get_db_session
 from app.core.errors import ApiError
+from app.core.rate_limit import data_rate_limit
 from steel_core.audit.service import write_audit
 from steel_core.db.enums import PointScope, Role
 from steel_core.db.models.accounts import User
@@ -20,7 +21,7 @@ from steel_core.db.models.market import PricePoint
 from steel_core.query.service import list_points
 from steel_core.quote.private import PrivateQuoteError, upsert_private_quote
 
-router = APIRouter(prefix="/api/points", tags=["points"])
+router = APIRouter(prefix="/api/points", tags=["points"], dependencies=[Depends(data_rate_limit)])
 
 
 class PointCreate(BaseModel):

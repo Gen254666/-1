@@ -2,12 +2,13 @@ from __future__ import annotations
 
 import json
 from datetime import date
+from typing import Any
 from uuid import UUID
 
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.llm.providers import CompletionClient
+from app.llm.providers import AllProvidersFailed, CompletionClient
 from steel_core.db.models.governance import DailyReport
 from steel_core.report.facts import build_daily_report_facts
 
@@ -55,15 +56,23 @@ async def generate_and_save_report(
         "anomalies": [anomaly.message for anomaly in facts.anomalies],
         "warnings": facts.warnings,
     }
-    narrative = await llm.complete(
-        [
-            {"role": "system", "content": REPORT_PROMPT},
-            {
-                "role": "user",
-                "content": json.dumps(facts_payload, ensure_ascii=False),
-            },
-        ]
-    )
+    model = "llm"
+    try:
+        narrative = await llm.complete(
+            [
+                {"role": "system", "content": REPORT_PROMPT},
+                {
+                    "role": "user",
+                    "content": json.dumps(facts_payload, ensure_ascii=False),
+                },
+            ]
+        )
+        if not narrative.strip():
+            narrative = _facts_markdown(facts_payload, facts.disclaimer)
+            model = "facts-only"
+    except AllProvidersFailed:
+        narrative = _facts_markdown(facts_payload, facts.disclaimer)
+        model = "facts-only"
 
     max_version = await session.scalar(
         select(func.max(DailyReport.version_no)).where(DailyReport.report_date == effective_date)
@@ -74,9 +83,57 @@ async def generate_and_save_report(
         markdown=narrative.strip() or "日报生成失败",
         sources=facts.sources,
         disclaimer=facts.disclaimer,
-        model="llm",
+        model=model,
         created_by=user_id,
     )
     session.add(report)
     await session.commit()
     return report
+
+
+def _facts_markdown(facts_payload: dict[str, Any], disclaimer: str) -> str:
+    lines = [
+        f"# {facts_payload['report_date']} 钢材行情日报（事实稿）",
+        "",
+        "> LLM 服务暂不可用，以下为系统根据数据库生成的事实数据，未经过模型解读。",
+        "",
+        "## 报价概览",
+    ]
+    quotes = facts_payload.get("quotes") or []
+    if quotes:
+        for quote in quotes:
+            change = quote.get("change")
+            change_text = f"，涨跌 {change}" if change is not None else ""
+            lines.append(
+                f"- {quote['code']} {quote['spec']} {quote['region']}："
+                f"{quote['price']} 元/吨{change_text}"
+            )
+    else:
+        lines.append("- 暂无报价")
+
+    lines.extend(
+        [
+            "",
+            "## 库存",
+            f"- 日期：{facts_payload['inventory'].get('date') or '无'}",
+            f"- 规格条数：{facts_payload['inventory'].get('total', 0)}",
+        ]
+    )
+
+    lines.extend(["", "## 价差"])
+    spreads = facts_payload.get("spreads") or []
+    if spreads:
+        for spread in spreads:
+            lines.append(f"- {spread['name']}：{spread['latest']}")
+    else:
+        lines.append("- 暂无可计算价差")
+
+    lines.extend(["", "## 异动提醒"])
+    anomalies = facts_payload.get("anomalies") or []
+    if anomalies:
+        lines.extend(f"- {message}" for message in anomalies)
+    else:
+        lines.append("- 暂无异常")
+
+    lines.extend(["", f"> {disclaimer}", ""])
+    return "\n".join(lines)
