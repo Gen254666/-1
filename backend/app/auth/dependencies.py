@@ -14,7 +14,7 @@ from steel_core.db.enums import Role
 from steel_core.db.models.accounts import User
 
 
-async def get_current_user(
+async def authenticate_user(
     request: Request,
     session: AsyncSession = Depends(get_db_session),
     redis: Any | None = Depends(get_redis_client),
@@ -46,6 +46,12 @@ async def get_current_user(
         raise ApiError(403, "AUTH_ACCOUNT_DISABLED", "账号已停用")
 
     request.state.token_payload = payload
+    return user
+
+
+async def get_current_user(user: User = Depends(authenticate_user)) -> User:
+    if user.must_change_password:
+        raise ApiError(403, "PASSWORD_CHANGE_REQUIRED", "请先修改初始密码")
     return user
 
 

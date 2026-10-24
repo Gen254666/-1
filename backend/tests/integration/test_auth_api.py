@@ -18,11 +18,13 @@ async def _create_user(
     username: str = "alice",
     *,
     role: Role = Role.USER,
+    must_change_password: bool = False,
 ) -> User:
     user = User(
         username=username,
         password_hash=hash_password(PASSWORD),
         role=role,
+        must_change_password=must_change_password,
     )
     session.add(user)
     await session.commit()
@@ -124,6 +126,39 @@ async def test_logout_revokes_refresh(session: AsyncSession, app_client: httpx.A
     response = await app_client.post("/api/auth/refresh")
 
     assert response.status_code == 401
+
+
+async def test_must_change_password_blocks_other_endpoints(
+    session: AsyncSession, app_client: httpx.AsyncClient
+) -> None:
+    await _create_user(session, "newbie", must_change_password=True)
+    login = await app_client.post(
+        "/api/auth/login", json={"username": "newbie", "password": PASSWORD}
+    )
+    assert login.status_code == 200
+    token = login.json()["access_token"]
+    headers = {"Authorization": f"Bearer {token}"}
+
+    blocked = await app_client.get("/api/quotes", headers=headers)
+    assert blocked.status_code == 403
+    assert blocked.json()["code"] == "PASSWORD_CHANGE_REQUIRED"
+
+    me = await app_client.get("/api/auth/me", headers=headers)
+    assert me.status_code == 200
+    assert me.json()["must_change_password"] is True
+
+    changed = await app_client.post(
+        "/api/auth/change-password",
+        headers=headers,
+        json={"old_password": PASSWORD, "new_password": "new-secret-123"},
+    )
+    assert changed.status_code == 204
+
+    allowed = await app_client.get("/api/quotes", headers=headers)
+    assert allowed.status_code == 200
+
+    me_after = await app_client.get("/api/auth/me", headers=headers)
+    assert me_after.json()["must_change_password"] is False
 
 
 async def test_change_password(session: AsyncSession, app_client: httpx.AsyncClient) -> None:

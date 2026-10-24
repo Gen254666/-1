@@ -10,8 +10,8 @@ export function LoginPage() {
 
   const onFinish = async (values: { username: string; password: string }) => {
     try {
-      await login(values.username, values.password);
-      navigate("/dashboard");
+      const current = await login(values.username, values.password);
+      navigate(current.must_change_password ? "/change-password" : "/dashboard");
     } catch (error) {
       message.error((error as Error).message);
     }

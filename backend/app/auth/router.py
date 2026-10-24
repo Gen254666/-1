@@ -6,7 +6,7 @@ from fastapi import APIRouter, Depends, Request, Response
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth import service
-from app.auth.dependencies import get_current_user
+from app.auth.dependencies import authenticate_user
 from app.auth.schemas import (
     ChangePasswordRequest,
     LoginRequest,
@@ -77,7 +77,7 @@ async def logout(
     request: Request,
     session: AsyncSession = Depends(get_db_session),
     redis: Any | None = Depends(get_redis_client),
-    user: User = Depends(get_current_user),
+    user: User = Depends(authenticate_user),
 ) -> Response:
     await service.logout(
         session,
@@ -93,7 +93,7 @@ async def logout(
 @router.post("/change-password", status_code=204)
 async def change_password(
     payload: ChangePasswordRequest,
-    user: User = Depends(get_current_user),
+    user: User = Depends(authenticate_user),
     session: AsyncSession = Depends(get_db_session),
 ) -> Response:
     await service.change_password(
@@ -106,5 +106,5 @@ async def change_password(
 
 
 @router.get("/me", response_model=UserOut)
-async def me(user: User = Depends(get_current_user)) -> UserOut:
+async def me(user: User = Depends(authenticate_user)) -> UserOut:
     return UserOut.model_validate(user)

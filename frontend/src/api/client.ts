@@ -92,6 +92,13 @@ export async function apiPost<T>(path: string, body?: unknown): Promise<T> {
   return (await response.json()) as T;
 }
 
+export async function apiPostVoid(path: string, body?: unknown): Promise<void> {
+  await request(path, {
+    method: "POST",
+    body: body === undefined ? undefined : JSON.stringify(body),
+  });
+}
+
 export async function apiPut<T>(path: string, body: unknown): Promise<T> {
   const response = await request(path, {
     method: "PUT",

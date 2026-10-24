@@ -7,6 +7,7 @@ import {
 } from "react";
 
 import {
+  apiGet,
   login as loginApi,
   loadCurrentUser,
   logout as logoutApi,
@@ -17,8 +18,9 @@ import type { User } from "../api/types";
 interface AuthState {
   user: User | null;
   loading: boolean;
-  login: (username: string, password: string) => Promise<void>;
+  login: (username: string, password: string) => Promise<User>;
   logout: () => Promise<void>;
+  refreshUser: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthState | null>(null);
@@ -36,6 +38,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const login = async (username: string, password: string) => {
     const result = await loginApi(username, password);
     setUser(result.user);
+    return result.user;
   };
 
   const logout = async () => {
@@ -47,8 +50,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
+  const refreshUser = async () => {
+    const current = await apiGet<User>("/api/auth/me");
+    setUser(current);
+  };
+
   return (
-    <AuthContext.Provider value={{ user, loading, login, logout }}>
+    <AuthContext.Provider value={{ user, loading, login, logout, refreshUser }}>
       {children}
     </AuthContext.Provider>
   );
