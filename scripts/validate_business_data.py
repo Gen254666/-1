@@ -17,6 +17,11 @@ def main() -> int:
     parser.add_argument("--inventory", type=Path, required=True)
     parser.add_argument("--quotes", type=Path, required=True)
     parser.add_argument("--date", dest="quote_date", type=str, default=None)
+    parser.add_argument(
+        "--allow-missing",
+        action="store_true",
+        help="允许部分点位缺失（只给警告，不判失败）",
+    )
     args = parser.parse_args()
 
     from datetime import date
@@ -52,8 +57,12 @@ def main() -> int:
     present = {row.point_code: row for row in quotes.rows}
     missing = sorted(expected_codes - set(present))
     if missing:
-        errors.append(f"缺少 {len(missing)} 个跟踪点位")
-        print(f"缺少点位: {missing}")
+        message = f"缺少 {len(missing)} 个跟踪点位: {missing}"
+        if args.allow_missing:
+            print(f"警告: {message}")
+        else:
+            errors.append(message)
+            print(f"缺少点位: {missing}")
 
     inventory_specs = {normalize_spec(row.spec): row for row in inventory.rows}
     print("\n=== 跟踪点与库存匹配 ===")
@@ -78,7 +87,10 @@ def main() -> int:
         for error in errors:
             print(f" - {error}")
         return 1
-    print("\n校验通过：16 个点位齐全，库存文件无行级错误。")
+    if missing:
+        print(f"\n校验通过（部分数据）：缺少 {len(missing)} 个点位，其余数据可用。")
+    else:
+        print("\n校验通过：16 个点位齐全，库存文件无行级错误。")
     return 0
 
 
