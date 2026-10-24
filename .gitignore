@@ -12,6 +12,9 @@ venv/
 node_modules/
 frontend/dist/
 .vite/
+frontend/test-results/
+frontend/playwright-report/
+frontend/blob-report/
 
 # Env / secrets
 .env

@@ -38,6 +38,18 @@ npm test
 npm run build
 ```
 
+### Playwright E2E
+
+前置条件：PostgreSQL 与 Memurai/Redis 已启动，`.env` 已配置 LLM Key，且至少导入过一天的报价数据。
+
+```bash
+cd frontend
+npx playwright install chromium
+npm run e2e
+```
+
+E2E 会自动启动 MCP、Agent 和 Vite，创建临时用户 `e2e_user`，覆盖登录、看板、智能对话、MCP 工具调用与报价卡片渲染。该用例依赖真实 LLM，默认不进入 CI。
+
 ### 本地 PostgreSQL（Windows 开发）
 
 本机使用 `pgserver` 自带的 PostgreSQL 16 二进制，数据目录放在英文路径，端口 `55432`：
