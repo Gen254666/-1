@@ -82,7 +82,14 @@ docker compose up -d
 
 访问 `http://localhost`。MCP Server 监听内部端口 8001，Agent 8000，Chroma 数据在 `chroma` 卷。
 
-> 当前开发机未安装 Docker，因此 compose 未实际运行；本地开发请用上面的 pgserver 方案。
+部署前可先做静态校验（无需 Docker）：
+
+```bash
+cd backend
+uv run python ../scripts/validate_deploy.py
+```
+
+> 开发机已完成 Memurai（Redis 7.2.5 兼容）验证；Docker 未安装，compose 仅做静态校验，需在目标 Linux 主机实际执行。本地开发请用上面的 pgserver 方案。
 
 ## 备份与恢复
 
