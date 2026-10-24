@@ -92,7 +92,16 @@ uv run python ../scripts/validate_business_data.py \
   --date 2026-10-24
 ```
 
-模板 `data/templates/mysteel_quotes_16points.csv` 已预置 16 个点位，只需填写 `price`、`change`、`note`。校验会检查：库存区块与行级错误、支售价公式偏差、点位是否齐全、报价日期是否一致、方管/矩管跟踪点能否在库存中匹配。
+模板 `data/templates/mysteel_quotes_16points.csv` 已预置 16 个点位，只需填写 `price`、`change`、`note`。校验会检查：库存区块与行级错误、支售价公式偏差、点位是否齐全、报价日期是否一致、方管/矩管跟踪点能否在库存中匹配。部分点位暂缺时可加 `--allow-missing`，缺项记为 warning。
+
+校验通过后导入数据库：
+
+```bash
+cd backend
+uv run python ../scripts/import_quotes_file.py \
+  --file ../data/inbox/quotes_2026-10-24.csv \
+  --source inventory
+```
 
 ## Docker 部署
 
