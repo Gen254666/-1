@@ -29,4 +29,5 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Docker Compose、Nginx 配置与备份脚本
 - 部署静态校验脚本与 shell 脚本 LF 行尾规范
 - Playwright E2E：登录、看板、智能对话与报价卡片全链路
+- 业务数据校验脚本与 16 点位报价模板
 - 后端 CI（ruff、mypy、pytest）与前端 CI（Vitest、build）
