@@ -58,7 +58,7 @@ uv run alembic upgrade head
 uv run python -m steel_core.db.seed
 ```
 
-开发环境默认管理员为 `admin` / `ChangeMe123!`，首次登录必须修改。生产环境通过 `INITIAL_ADMIN_PASSWORD` 注入初始密码。
+开发环境默认管理员为 `admin` / `ChangeMe123!`，首次登录会被强制跳转到改密页，修改成功后才能访问其他功能。生产环境通过 `INITIAL_ADMIN_PASSWORD` 注入初始密码。
 
 ## 环境变量
 
