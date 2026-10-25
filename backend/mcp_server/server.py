@@ -8,6 +8,7 @@ from typing import Any
 from uuid import UUID
 
 from mcp.server.fastmcp import FastMCP
+from mcp.server.transport_security import TransportSecuritySettings
 from starlette.requests import Request
 from starlette.responses import JSONResponse
 
@@ -33,6 +34,15 @@ mcp = FastMCP(
     host="127.0.0.1",
     port=8001,
     stateless_http=True,
+    transport_security=TransportSecuritySettings(
+        enable_dns_rebinding_protection=True,
+        allowed_hosts=["mcp-server:*", "127.0.0.1:*", "localhost:*", "[::1]:*"],
+        allowed_origins=[
+            "http://mcp-server:*",
+            "http://127.0.0.1:*",
+            "http://localhost:*",
+        ],
+    ),
 )
 
 
