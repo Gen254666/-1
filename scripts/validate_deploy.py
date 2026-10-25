@@ -10,6 +10,23 @@ ROOT = Path(__file__).resolve().parents[1]
 errors: list[str] = []
 
 
+class ComposeLoader(yaml.SafeLoader):
+    pass
+
+
+def _compose_tag(
+    loader: ComposeLoader, tag_suffix: str, node: yaml.Node
+) -> Any:
+    if isinstance(node, yaml.SequenceNode):
+        return loader.construct_sequence(node)
+    if isinstance(node, yaml.MappingNode):
+        return loader.construct_mapping(node)
+    return loader.construct_scalar(node)
+
+
+ComposeLoader.add_multi_constructor("!", _compose_tag)
+
+
 def check(condition: bool, message: str) -> None:
     if not condition:
         errors.append(message)
@@ -19,7 +36,11 @@ def read(path: str) -> str:
     return (ROOT / path).read_text(encoding="utf-8")
 
 
-compose: dict[str, Any] = yaml.safe_load(read("docker-compose.yml"))
+def load_compose(path: str) -> dict[str, Any]:
+    return yaml.load(read(path), Loader=ComposeLoader)
+
+
+compose: dict[str, Any] = load_compose("docker-compose.yml")
 services: dict[str, Any] = compose.get("services", {})
 check(
     set(services) == {"postgres", "redis", "mcp-server", "agent", "frontend"},
@@ -81,6 +102,29 @@ check("npm run build" in frontend_dockerfile, "frontend Dockerfile build missing
 nginx = read("frontend/nginx.conf")
 check("proxy_pass http://agent:8000;" in nginx, "nginx must proxy /api to agent")
 check("proxy_buffering off;" in nginx, "nginx SSE buffering must be off")
+check("Content-Security-Policy" in nginx, "nginx must set Content-Security-Policy")
+check("X-Content-Type-Options" in nginx, "nginx must set X-Content-Type-Options")
+
+prod: dict[str, Any] = load_compose("docker-compose.prod.yml")
+prod_services: dict[str, Any] = prod.get("services", {})
+check("caddy" in prod_services, "prod overlay must define caddy")
+prod_frontend = prod_services.get("frontend", {})
+check(not prod_frontend.get("ports"), "prod frontend must not publish host ports")
+check("80" in [str(item) for item in prod_frontend.get("expose", [])], "prod frontend must expose 80")
+caddy_ports = [str(port) for port in prod_services.get("caddy", {}).get("ports", [])]
+check(any(port.startswith("443:") for port in caddy_ports), "caddy must publish 443")
+for name in ("postgres", "redis", "mcp-server", "agent", "frontend", "caddy"):
+    service = prod_services.get(name, {})
+    check(service.get("restart") == "unless-stopped", f"prod {name} must restart")
+    environment = service.get("environment") or {}
+    check(environment.get("TZ") == "Asia/Shanghai", f"prod {name} must set TZ")
+
+caddy = read("deploy/Caddyfile")
+check("reverse_proxy frontend:80" in caddy, "Caddy must proxy to frontend:80")
+check("Strict-Transport-Security" in caddy, "Caddy must set HSTS")
+check("Content-Security-Policy" in caddy, "Caddy must set CSP")
+check("X-Frame-Options" in caddy, "Caddy must set X-Frame-Options")
+check((ROOT / "scripts/generate_secrets.py").exists(), "generate_secrets.py missing")
 
 init_db = read("deploy/init_db.sh")
 check("CREATE ROLE steel_mcp" in init_db, "init_db.sh must create steel_mcp")
@@ -100,4 +144,7 @@ if errors:
         print(f" - {error}")
     sys.exit(1)
 
-print("deployment validation passed: compose, Dockerfiles, nginx, init script, ignore rules")
+print(
+    "deployment validation passed: compose, prod overlay, Caddy, security headers, "
+    "Dockerfiles, nginx, init script, ignore rules"
+)

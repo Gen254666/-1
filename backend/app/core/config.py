@@ -34,7 +34,11 @@ class Settings(BaseSettings):
     login_lock_minutes: int = 15
     login_rate_limit: int = 5
     data_rate_limit: int = 120
+    import_rate_limit: int = 5
     rate_limit_window_seconds: int = 60
+    session_idle_minutes: int = 60
+    upload_tmp_dir: str = ""
+    prod_allow_local_origins: bool = False
     mcp_base_url: str = "http://localhost:8001"
     mcp_service_secret: str = DEV_MCP_SERVICE_SECRET
     chroma_path: str = "../data/chroma"
@@ -42,6 +46,9 @@ class Settings(BaseSettings):
 
     llm_fallback_order: str = "claude,deepseek,doubao"
     llm_timeout_seconds: float = 30.0
+    llm_daily_request_limit: int = 200
+    llm_max_attempts_per_provider: int = 1
+    llm_max_total_attempts: int = 3
     anthropic_api_key: str = ""
     anthropic_base_url: str = "https://api.anthropic.com"
     claude_model: str = "claude-sonnet-4-6"
@@ -70,6 +77,14 @@ class Settings(BaseSettings):
                 ):
                     msg = f"{name} must be a non-placeholder value of at least 32 characters in production"
                     raise ValueError(msg)
+            if not self.prod_allow_local_origins:
+                for origin in self.cors_origins:
+                    if "localhost" in origin or "127.0.0.1" in origin:
+                        msg = (
+                            "CORS_ORIGINS must not contain localhost in production; "
+                            "set PROD_ALLOW_LOCAL_ORIGINS=1 only for a local smoke test"
+                        )
+                        raise ValueError(msg)
         return self
 
 

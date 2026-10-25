@@ -1,0 +1,80 @@
+services:
+  postgres:
+    restart: unless-stopped
+    environment:
+      TZ: Asia/Shanghai
+
+  redis:
+    restart: unless-stopped
+    environment:
+      TZ: Asia/Shanghai
+
+  mcp-server:
+    restart: unless-stopped
+    environment:
+      ENVIRONMENT: prod
+      CORS_ORIGINS: ${CORS_ORIGINS:?set CORS_ORIGINS to the public https origin}
+      TZ: Asia/Shanghai
+
+  agent:
+    restart: unless-stopped
+    command:
+      [
+        "uvicorn",
+        "app.main:app",
+        "--host",
+        "0.0.0.0",
+        "--port",
+        "8000",
+        "--workers",
+        "${AGENT_WORKERS:-2}",
+        "--proxy-headers",
+        "--forwarded-allow-ips=*",
+      ]
+    environment:
+      ENVIRONMENT: prod
+      CORS_ORIGINS: ${CORS_ORIGINS:?set CORS_ORIGINS to the public https origin}
+      TZ: Asia/Shanghai
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "python -c \"import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/healthz', timeout=3)\"",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  frontend:
+    restart: unless-stopped
+    ports: !reset []
+    expose:
+      - "80"
+    environment:
+      TZ: Asia/Shanghai
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1/"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    environment:
+      APP_DOMAIN: ${APP_DOMAIN:?set APP_DOMAIN to the public hostname}
+      TZ: Asia/Shanghai
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    volumes:
+      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - frontend
+
+volumes:
+  caddy_data:
+  caddy_config:
