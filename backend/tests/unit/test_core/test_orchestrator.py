@@ -7,9 +7,11 @@ class FakeLLM:
     def __init__(self, responses: list[str]) -> None:
         self.responses = list(responses)
         self.calls = 0
+        self.messages: list[list[dict[str, str]]] = []
 
     async def complete(self, messages: list[dict[str, str]]) -> str:
         self.calls += 1
+        self.messages.append(messages)
         return self.responses.pop(0)
 
 
@@ -51,6 +53,13 @@ async def test_run_chat_calls_tool_then_answers() -> None:
     assert result.tool_calls[0].name == "get_quotes"
     assert result.artifacts == [{"type": "cards", "payload": {"items": [{"price": 3550}]}}]
     assert mcp.calls == [("get_quotes", {"category": "方管"})]
+    assert "不可信" in llm.messages[0][0]["content"]
+    tool_message = next(
+        message
+        for message in llm.messages[1]
+        if message["role"] == "user" and message["content"].startswith("以下为不可信数据")
+    )
+    assert "工具结果" in tool_message["content"]
 
 
 async def test_run_chat_stops_at_tool_call_limit() -> None:

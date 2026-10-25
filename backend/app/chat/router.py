@@ -16,6 +16,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.auth.dependencies import get_current_user
 from app.chat.dependencies import get_llm_router, get_mcp_client_factory
 from app.chat.orchestrator import run_chat
+from app.chat.safety import check_prompt_injection
 from app.core.config import get_settings
 from app.core.db import get_db_session, get_db_session_factory
 from app.core.errors import ApiError
@@ -165,6 +166,26 @@ async def stream_endpoint(
     )
     if not allowed:
         raise ApiError(429, "RATE_LIMITED", "对话请求过于频繁，请稍后再试")
+
+    injection = check_prompt_injection(payload.message)
+    if injection is not None:
+        try:
+            await write_audit(
+                session,
+                user_id=user.id,
+                action="chat.prompt_injection",
+                resource_type="chat",
+                detail={"pattern": injection},
+                ip=request_ip,
+            )
+            await session.commit()
+        except Exception:  # noqa: BLE001
+            logger.exception("prompt injection audit failed")
+        raise ApiError(
+            400,
+            "PROMPT_INJECTION_BLOCKED",
+            "输入包含不允许的指令，请只提问钢材行情相关问题",
+        )
 
     if payload.session_id is not None:
         chat_session = await _owned_session(session, session_id=payload.session_id, user=user)
