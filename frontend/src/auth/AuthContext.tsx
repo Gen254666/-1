@@ -1,7 +1,9 @@
 import {
   createContext,
+  useCallback,
   useContext,
   useEffect,
+  useRef,
   useState,
   type ReactNode,
 } from "react";
@@ -14,6 +16,7 @@ import {
   setAccessToken,
 } from "../api/client";
 import type { User } from "../api/types";
+import { idleTimeoutMinutes, shouldIdleLogout } from "../utils/idleTimeout";
 
 interface AuthState {
   user: User | null;
@@ -41,14 +44,45 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return result.user;
   };
 
-  const logout = async () => {
+  const logout = useCallback(async () => {
     try {
       await logoutApi();
     } finally {
       setAccessToken(null);
       setUser(null);
     }
-  };
+  }, []);
+
+  const lastActivityRef = useRef(Date.now());
+
+  useEffect(() => {
+    if (!user) return;
+    lastActivityRef.current = Date.now();
+    const activityEvents = ["mousemove", "keydown", "click", "touchstart"];
+    const resetActivity = () => {
+      lastActivityRef.current = Date.now();
+    };
+    activityEvents.forEach((event) =>
+      window.addEventListener(event, resetActivity, { passive: true }),
+    );
+    const timer = window.setInterval(() => {
+      if (
+        shouldIdleLogout(
+          lastActivityRef.current,
+          Date.now(),
+          idleTimeoutMinutes(),
+        )
+      ) {
+        void logout();
+      }
+    }, 30_000);
+    return () => {
+      activityEvents.forEach((event) =>
+        window.removeEventListener(event, resetActivity),
+      );
+      window.clearInterval(timer);
+    };
+  }, [user, logout]);
 
   const refreshUser = async () => {
     const current = await apiGet<User>("/api/auth/me");

@@ -84,6 +84,13 @@ async def refresh(session: AsyncSession, *, refresh_token: str) -> AuthResult:
     if stored.expires_at <= now:
         raise ApiError(401, "AUTH_TOKEN_EXPIRED", "刷新令牌已过期")
 
+    settings = get_settings()
+    last_used = stored.last_used_at or stored.created_at
+    if now - last_used > timedelta(minutes=settings.session_idle_minutes):
+        stored.revoked_at = now
+        await session.commit()
+        raise ApiError(401, "AUTH_SESSION_EXPIRED", "会话已超时，请重新登录")
+
     user = await session.get(User, stored.user_id)
     if user is None:
         raise ApiError(401, "AUTH_TOKEN_INVALID", "用户不存在")
@@ -138,6 +145,7 @@ async def change_password(
 
 async def _issue_tokens(session: AsyncSession, user: User) -> AuthResult:
     settings = get_settings()
+    now = datetime.now(UTC)
     access_token, _, _ = create_token(
         user_id=user.id,
         token_type="access",
@@ -155,6 +163,7 @@ async def _issue_tokens(session: AsyncSession, user: User) -> AuthResult:
             user_id=user.id,
             refresh_token_hash=hash_refresh_token(refresh_token),
             expires_at=refresh_expires,
+            last_used_at=now,
         )
     )
     return AuthResult(

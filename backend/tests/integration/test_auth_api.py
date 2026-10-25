@@ -1,3 +1,4 @@
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 import httpx
@@ -6,7 +7,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from steel_core.db.enums import Role
-from steel_core.db.models.accounts import User
+from steel_core.db.models.accounts import User, UserSession
 from steel_core.db.models.governance import AuditLog
 from steel_core.security import hash_password
 
@@ -110,6 +111,24 @@ async def test_login_locks_after_failures(
     assert response is not None
     assert response.status_code == 423
     assert response.json()["code"] == "AUTH_ACCOUNT_LOCKED"
+
+
+async def test_refresh_rejects_idle_session(
+    session: AsyncSession, app_client: httpx.AsyncClient
+) -> None:
+    user = await _create_user(session)
+    await _login(app_client)
+    stored = await session.scalar(
+        select(UserSession).where(UserSession.user_id == user.id)
+    )
+    assert stored is not None
+    stored.last_used_at = datetime.now(UTC) - timedelta(minutes=61)
+    await session.commit()
+
+    response = await app_client.post("/api/auth/refresh")
+
+    assert response.status_code == 401
+    assert response.json()["code"] == "AUTH_SESSION_EXPIRED"
 
 
 async def test_refresh_rotation_and_reuse_detection(
