@@ -105,6 +105,7 @@ check("proxy_buffering off;" in nginx, "nginx SSE buffering must be off")
 check("Content-Security-Policy" in nginx, "nginx must set Content-Security-Policy")
 check("script-src 'self'" in nginx, "nginx CSP must restrict scripts to self")
 check("X-Content-Type-Options" in nginx, "nginx must set X-Content-Type-Options")
+check("client_max_body_size 25m;" in nginx, "nginx must allow 20MB uploads")
 check(
     "proxy_set_header X-Real-IP $http_x_real_ip;" in nginx,
     "nginx must preserve the trusted X-Real-IP",
