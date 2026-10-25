@@ -104,3 +104,19 @@ async def data_rate_limit(
     )
     if not allowed:
         raise ApiError(429, "RATE_LIMITED", "数据请求过于频繁，请稍后再试")
+
+
+async def import_rate_limit(
+    user: User = Depends(get_current_user),
+    redis: Any | None = Depends(get_redis_client),
+) -> None:
+    settings = get_settings()
+    limiter = RateLimiter(redis)
+    allowed = await limiter.allow(
+        scope="import",
+        identifier=str(user.id),
+        limit=settings.import_rate_limit,
+        window_seconds=settings.rate_limit_window_seconds,
+    )
+    if not allowed:
+        raise ApiError(429, "RATE_LIMITED", "导入操作过于频繁，请稍后再试")

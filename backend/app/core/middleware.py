@@ -17,6 +17,7 @@ class RequestContextMiddleware(BaseHTTPMiddleware):
         self, request: Request, call_next: Callable[[Request], Awaitable[Response]]
     ) -> Response:
         request_id = request.headers.get("X-Request-ID") or uuid4().hex
+        request.state.request_id = request_id
         token = request_id_var.set(request_id)
         started = perf_counter()
         status_code = 500

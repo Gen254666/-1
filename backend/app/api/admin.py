@@ -18,6 +18,7 @@ from app.core.config import get_settings
 from app.core.db import get_db_session
 from app.core.errors import ApiError
 from app.core.http import client_ip
+from app.core.rate_limit import import_rate_limit
 from app.core.redis import get_redis_client
 from app.core.uploads import UploadValidationError, validate_upload
 from app.knowledge.gateway import get_knowledge_gateway
@@ -172,6 +173,7 @@ async def import_inventory_endpoint(
     user: User = Depends(require_admin),
     session: AsyncSession = Depends(get_db_session),
     redis: Any | None = Depends(get_redis_client),
+    _rate_limit: None = Depends(import_rate_limit),
 ) -> dict[str, Any]:
     if Path(file.filename or "").suffix.lower() != ".xlsx":
         raise ApiError(400, "INVALID_UPLOAD", "库存导入只支持 .xlsx 文件")
@@ -211,6 +213,7 @@ async def rollback_import_endpoint(
     user: User = Depends(require_admin),
     session: AsyncSession = Depends(get_db_session),
     redis: Any | None = Depends(get_redis_client),
+    _rate_limit: None = Depends(import_rate_limit),
 ) -> dict[str, Any]:
     batch = await session.get(ImportBatch, batch_id)
     if batch is None:
