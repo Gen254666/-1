@@ -41,6 +41,7 @@ def test_prod_accepts_explicit_secrets() -> None:
         environment="prod",
         jwt_secret="prod-jwt-secret-0123456789abcdef",
         mcp_service_secret="prod-mcp-secret-0123456789abcdef",
+        cors_origins=["https://steel.example.com"],
     )
 
     assert settings.environment == "prod"
