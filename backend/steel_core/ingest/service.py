@@ -246,6 +246,7 @@ async def import_inventory(
     path: Path,
     explicit_date: date | None = None,
     warehouse: str | None = None,
+    ip: str | None = None,
 ) -> ImportOutcome:
     try:
         parsed = parse_inventory_workbook(path, explicit_date=explicit_date)
@@ -426,6 +427,7 @@ async def import_inventory(
                 "effective_date": parsed.effective_date.isoformat(),
                 "warehouse": warehouse_name,
             },
+            ip=ip,
         )
     )
     derived = await sync_inventory_derivation(

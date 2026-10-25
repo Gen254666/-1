@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from typing import Any
 
 from fastapi import APIRouter, Depends, Request, Response
@@ -16,10 +17,13 @@ from app.auth.schemas import (
 from app.core.config import get_settings
 from app.core.db import get_db_session
 from app.core.errors import ApiError
+from app.core.http import client_ip
 from app.core.rate_limit import login_rate_limit
 from app.core.redis import get_redis_client
+from steel_core.audit.service import write_audit
 from steel_core.db.models.accounts import User
 
+logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/auth", tags=["auth"])
 REFRESH_COOKIE = "refresh_token"
 COOKIE_PATH = "/api/auth"
@@ -46,14 +50,60 @@ def _token_response(result: service.AuthResult) -> TokenResponse:
     )
 
 
+async def _audit_login(
+    session: AsyncSession,
+    *,
+    user_id: Any | None,
+    action: str,
+    username: str,
+    ip: str | None,
+    code: str | None = None,
+) -> None:
+    try:
+        await write_audit(
+            session,
+            user_id=user_id,
+            action=action,
+            resource_type="auth",
+            resource_id=str(user_id) if user_id else None,
+            detail={"username": username[:100], "code": code},
+            ip=ip,
+        )
+        await session.commit()
+    except Exception:  # noqa: BLE001
+        logger.exception("login audit failed")
+
+
 @router.post("/login", response_model=TokenResponse)
 async def login(
     payload: LoginRequest,
+    request: Request,
     response: Response,
     session: AsyncSession = Depends(get_db_session),
     _rate_limit: None = Depends(login_rate_limit),
 ) -> TokenResponse:
-    result = await service.login(session, username=payload.username, password=payload.password)
+    ip = client_ip(request)
+    try:
+        result = await service.login(
+            session, username=payload.username, password=payload.password
+        )
+    except ApiError as exc:
+        await _audit_login(
+            session,
+            user_id=None,
+            action="auth.login_failed",
+            username=payload.username,
+            ip=ip,
+            code=exc.code,
+        )
+        raise
+    await _audit_login(
+        session,
+        user_id=result.user.id,
+        action="auth.login",
+        username=result.user.username,
+        ip=ip,
+    )
     _set_refresh_cookie(response, result.refresh_token)
     return _token_response(result)
 

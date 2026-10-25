@@ -3,11 +3,13 @@ from typing import Any
 
 import httpx
 import pytest
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.chat.dependencies import get_llm_router, get_mcp_client_factory
 from steel_core.db.enums import Role
 from steel_core.db.models.accounts import User
+from steel_core.db.models.governance import AuditLog
 from steel_core.security import hash_password
 
 pytestmark = pytest.mark.integration
@@ -98,6 +100,15 @@ async def test_chat_stream_and_history(
     assert [message["role"] for message in payload] == ["user", "assistant"]
     assert payload[1]["content"] == "今日方管 3550 元/吨"
     assert payload[1]["artifacts"]
+
+    audit = await session.scalar(
+        select(AuditLog)
+        .where(AuditLog.action == "mcp.call")
+        .order_by(AuditLog.created_at.desc())
+    )
+    assert audit is not None
+    assert audit.resource_id == "get_quotes"
+    assert audit.ip
 
 
 async def test_chat_requires_auth(app_client: httpx.AsyncClient) -> None:

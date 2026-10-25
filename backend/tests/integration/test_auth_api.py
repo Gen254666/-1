@@ -2,10 +2,12 @@ from typing import Any
 
 import httpx
 import pytest
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from steel_core.db.enums import Role
 from steel_core.db.models.accounts import User
+from steel_core.db.models.governance import AuditLog
 from steel_core.security import hash_password
 
 pytestmark = pytest.mark.integration
@@ -68,6 +70,30 @@ async def test_wrong_password_returns_401(
 
     assert response.status_code == 401
     assert response.json()["code"] == "AUTH_INVALID_CREDENTIALS"
+
+
+async def test_login_success_and_failure_are_audited(
+    session: AsyncSession, app_client: httpx.AsyncClient
+) -> None:
+    await _create_user(session)
+
+    await app_client.post(
+        "/api/auth/login", json={"username": "alice", "password": "wrong"}
+    )
+    await _login(app_client)
+
+    entries = list(
+        (
+            await session.scalars(
+                select(AuditLog)
+                .where(AuditLog.action.in_(("auth.login", "auth.login_failed")))
+                .order_by(AuditLog.created_at)
+            )
+        ).all()
+    )
+    actions = {entry.action for entry in entries}
+    assert {"auth.login", "auth.login_failed"} <= actions
+    assert all(entry.ip for entry in entries)
 
 
 async def test_login_locks_after_failures(

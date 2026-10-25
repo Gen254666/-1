@@ -8,7 +8,7 @@ from datetime import date
 from pathlib import Path
 from typing import Any
 
-from fastapi import APIRouter, Depends, File, Form, UploadFile
+from fastapi import APIRouter, Depends, File, Form, Request, UploadFile
 from pydantic import BaseModel, Field
 from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -17,6 +17,7 @@ from app.auth.dependencies import require_admin
 from app.core.config import get_settings
 from app.core.db import get_db_session
 from app.core.errors import ApiError
+from app.core.http import client_ip
 from app.core.redis import get_redis_client
 from app.core.uploads import UploadValidationError, validate_upload
 from app.knowledge.gateway import get_knowledge_gateway
@@ -165,6 +166,7 @@ async def list_imports_endpoint(
 
 @admin_router.post("/import/inventory")
 async def import_inventory_endpoint(
+    request: Request,
     file: UploadFile = File(...),
     explicit_date: date | None = Form(None),
     user: User = Depends(require_admin),
@@ -176,7 +178,11 @@ async def import_inventory_endpoint(
     temp_dir, path = await _save_upload(file)
     try:
         outcome = await import_inventory(
-            session, user_id=user.id, path=path, explicit_date=explicit_date
+            session,
+            user_id=user.id,
+            path=path,
+            explicit_date=explicit_date,
+            ip=client_ip(request),
         )
     except ImportValidationError as exc:
         raise ApiError(
@@ -201,6 +207,7 @@ async def import_inventory_endpoint(
 @admin_router.post("/imports/{batch_id}/rollback")
 async def rollback_import_endpoint(
     batch_id: uuid.UUID,
+    request: Request,
     user: User = Depends(require_admin),
     session: AsyncSession = Depends(get_db_session),
     redis: Any | None = Depends(get_redis_client),
@@ -252,6 +259,7 @@ async def rollback_import_endpoint(
         resource_type="import_batch",
         resource_id=str(batch.id),
         detail={"effective_date": batch.effective_date.isoformat()},
+        ip=client_ip(request),
     )
     await session.commit()
     cache = Cache(redis)
@@ -457,6 +465,7 @@ async def list_users_endpoint(
 @users_router.post("", status_code=201)
 async def create_user_endpoint(
     payload: UserCreate,
+    request: Request,
     admin: User = Depends(require_admin),
     session: AsyncSession = Depends(get_db_session),
 ) -> dict[str, Any]:
@@ -479,6 +488,7 @@ async def create_user_endpoint(
         resource_type="user",
         resource_id=str(user.id),
         detail={"username": user.username, "role": user.role.value},
+        ip=client_ip(request),
     )
     await session.commit()
     return _user_dict(user)
@@ -488,6 +498,7 @@ async def create_user_endpoint(
 async def update_user_endpoint(
     user_id: uuid.UUID,
     payload: UserUpdate,
+    request: Request,
     admin: User = Depends(require_admin),
     session: AsyncSession = Depends(get_db_session),
 ) -> dict[str, Any]:
@@ -505,6 +516,7 @@ async def update_user_endpoint(
         resource_type="user",
         resource_id=str(user.id),
         detail=changes,
+        ip=client_ip(request),
     )
     await session.commit()
     return _user_dict(user)

@@ -19,9 +19,11 @@ from app.chat.orchestrator import run_chat
 from app.core.config import get_settings
 from app.core.db import get_db_session, get_db_session_factory
 from app.core.errors import ApiError
+from app.core.http import client_ip
 from app.core.rate_limit import RateLimiter
 from app.core.redis import get_redis_client
 from app.llm.providers import AllProvidersFailed
+from steel_core.audit.service import write_audit
 from steel_core.db.enums import MessageRole
 from steel_core.db.models.accounts import ChatMessage, ChatSession, User
 
@@ -153,6 +155,7 @@ async def stream_endpoint(
     session_factory: Any = Depends(get_db_session_factory),
 ) -> StreamingResponse:
     settings = get_settings()
+    request_ip = client_ip(request)
     limiter = RateLimiter(redis)
     allowed = await limiter.allow(
         scope="chat",
@@ -227,6 +230,7 @@ async def stream_endpoint(
         await _persist_assistant(
             session_factory, chat_session_id, result.text, result.artifacts, tool_calls
         )
+        await _audit_tool_calls(session_factory, user.id, request_ip, tool_calls)
         yield _sse("done", {"session_id": str(chat_session_id)})
 
     return StreamingResponse(
@@ -238,6 +242,39 @@ async def stream_endpoint(
             "Connection": "keep-alive",
         },
     )
+
+
+async def _audit_tool_calls(
+    factory: Any,
+    user_id: UUID,
+    ip: str | None,
+    tool_calls: list[dict[str, Any]],
+) -> None:
+    if not tool_calls:
+        return
+    try:
+        async with factory() as session:
+            for call in tool_calls:
+                result = call.get("result") or {}
+                error = result.get("error") or {}
+                await write_audit(
+                    session,
+                    user_id=user_id,
+                    action="mcp.call",
+                    resource_type="tool",
+                    resource_id=str(call.get("name") or "")[:64],
+                    detail={
+                        "arguments": json.dumps(
+                            call.get("arguments") or {}, ensure_ascii=False
+                        )[:500],
+                        "error_code": error.get("code") if isinstance(error, dict) else None,
+                        "summary": str(result.get("summary") or "")[:200],
+                    },
+                    ip=ip,
+                )
+            await session.commit()
+    except Exception:  # noqa: BLE001
+        logger.exception("mcp audit failed")
 
 
 async def _persist_assistant(

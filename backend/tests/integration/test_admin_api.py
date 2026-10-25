@@ -6,10 +6,12 @@ from pathlib import Path
 import httpx
 import openpyxl
 import pytest
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from steel_core.db.enums import Role
 from steel_core.db.models.accounts import User
+from steel_core.db.models.governance import AuditLog
 from steel_core.security import hash_password
 from tests.unit.test_core.test_inventory_parser import _build_workbook
 
@@ -85,6 +87,19 @@ async def test_admin_import_inventory_and_rollback(
     imports_after = await app_client.get("/api/admin/imports", headers=headers)
     batch_after = next(row for row in imports_after.json() if row["id"] == payload["batch_id"])
     assert batch_after["status"] == "rolled_back"
+
+    import_audit = await session.scalar(
+        select(AuditLog)
+        .where(AuditLog.action == "import.inventory")
+        .order_by(AuditLog.created_at.desc())
+    )
+    rollback_audit = await session.scalar(
+        select(AuditLog)
+        .where(AuditLog.action == "import.rollback")
+        .order_by(AuditLog.created_at.desc())
+    )
+    assert import_audit is not None and import_audit.ip
+    assert rollback_audit is not None and rollback_audit.ip
 
 
 async def _post_inventory(
@@ -334,6 +349,25 @@ async def test_admin_user_management(session: AsyncSession, app_client: httpx.As
     )
     assert created.status_code == 201
     assert created.json()["must_change_password"] is True
+
+    patched = await app_client.patch(
+        f"/api/users/{created.json()['id']}",
+        headers=admin_headers,
+        json={"role": "admin"},
+    )
+    assert patched.status_code == 200
+
+    user_audits = list(
+        (
+            await session.scalars(
+                select(AuditLog)
+                .where(AuditLog.action.in_(("user.create", "user.update")))
+                .order_by(AuditLog.created_at)
+            )
+        ).all()
+    )
+    assert {entry.action for entry in user_audits} >= {"user.create", "user.update"}
+    assert all(entry.ip for entry in user_audits)
 
     listing = await app_client.get("/api/users", headers=admin_headers)
     assert listing.status_code == 200
