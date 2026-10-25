@@ -82,6 +82,8 @@ services:
       DOUBAO_API_KEY: ${DOUBAO_API_KEY:-}
       DOUBAO_MODEL: ${DOUBAO_MODEL:-}
       LLM_FALLBACK_ORDER: ${LLM_FALLBACK_ORDER:-claude,deepseek,doubao}
+    volumes:
+      - chroma:/app/chroma_data
     depends_on:
       postgres:
         condition: service_healthy
