@@ -59,7 +59,7 @@ export function DashboardPage() {
   return (
     <div className="page-stack">
       <Row gutter={16}>
-        <Col span={18}>
+        <Col xs={24} lg={18}>
           <Card
             title={`当日报价 ${data.date ?? ""}（${filteredQuotes.length}/${data.quotes.total}）`}
           >
@@ -79,7 +79,7 @@ export function DashboardPage() {
             <QuoteCards items={filteredQuotes} />
           </Card>
         </Col>
-        <Col span={6}>
+        <Col xs={24} lg={6} className="dashboard-side-col">
           <Card title="库存概览">
             <p>仓库：{data.inventory.warehouse ?? "-"}</p>
             <p>日期：{data.inventory.snapshot_date ?? "-"}</p>
