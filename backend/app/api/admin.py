@@ -27,9 +27,10 @@ from steel_core.analysis.thresholds import (
 )
 from steel_core.audit.service import write_audit
 from steel_core.cache.service import Cache
-from steel_core.db.enums import ImportStatus, Role
+from steel_core.db.enums import DatasetType, ImportStatus, Role
 from steel_core.db.models.accounts import User
 from steel_core.db.models.governance import AppConfig, ImportBatch
+from steel_core.ingest.derivation import derive_from_active_snapshot
 from steel_core.ingest.service import (
     ImportOutcome,
     ImportValidationError,
@@ -230,10 +231,42 @@ async def rollback_import_endpoint(
     batch = await session.get(ImportBatch, batch_id)
     if batch is None:
         raise ApiError(404, "NOT_FOUND", "导入批次不存在")
+    if batch.dataset_type == DatasetType.MARKET_QUOTE and batch.file_name.startswith(
+        "自动生成-"
+    ):
+        raise ApiError(
+            400,
+            "AUTO_BATCH_READONLY",
+            "自动生成的行情批次不能单独回滚，请回滚对应库存批次",
+        )
     try:
         previous = await rollback_version(session, batch_id=batch_id)
     except VersionNotFoundError as exc:
         raise ApiError(400, "INVALID_ROLLBACK", str(exc)) from exc
+
+    derived_payload: dict[str, Any] | None = None
+    invalidate_dates = {batch.effective_date}
+    if batch.dataset_type == DatasetType.INVENTORY:
+        derive_date = previous.effective_date if previous is not None else batch.effective_date
+        invalidate_dates.add(derive_date)
+        derived = await derive_from_active_snapshot(
+            session,
+            user_id=user.id,
+            effective_date=derive_date,
+            allow_empty=True,
+        )
+        if derived is not None:
+            derived_payload = {
+                "effective_date": derive_date.isoformat(),
+                "points_created": derived.points_created,
+                "points_updated": derived.points_updated,
+                "points_deactivated": derived.points_deactivated,
+                "quotes_written": derived.quotes_written,
+                "quote_version_id": (
+                    str(derived.quote_version_id) if derived.quote_version_id else None
+                ),
+                "warnings": [warning.message for warning in derived.warnings],
+            }
 
     await write_audit(
         session,
@@ -244,10 +277,13 @@ async def rollback_import_endpoint(
         detail={"effective_date": batch.effective_date.isoformat()},
     )
     await session.commit()
-    await Cache(redis).invalidate_date(batch.effective_date)
+    cache = Cache(redis)
+    for invalidate_date in invalidate_dates:
+        await cache.invalidate_date(invalidate_date)
     return {
         "batch_id": str(batch.id),
         "previous_version_id": str(previous.id) if previous else None,
+        "derived": derived_payload,
     }
 
 

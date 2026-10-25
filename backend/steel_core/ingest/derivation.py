@@ -8,7 +8,9 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from steel_core.audit.service import write_audit
-from steel_core.db.enums import DatasetType, PointScope
+from steel_core.db.enums import DatasetType, PointScope, VersionStatus
+from steel_core.db.models.governance import DatasetVersion
+from steel_core.db.models.inventory import InventoryItem, InventorySnapshot
 from steel_core.db.models.market import MarketQuote, PricePoint
 from steel_core.ingest.common import ParseIssue
 from steel_core.ingest.derived import (
@@ -215,6 +217,76 @@ async def sync_inventory_derivation(
         },
     )
     return outcome
+
+
+async def derive_from_active_snapshot(
+    session: AsyncSession,
+    *,
+    user_id: UUID,
+    effective_date: date,
+    force: bool = False,
+    allow_empty: bool = False,
+) -> DerivationOutcome | None:
+    snapshot = await session.scalar(
+        select(InventorySnapshot)
+        .join(DatasetVersion, InventorySnapshot.version_id == DatasetVersion.id)
+        .where(
+            DatasetVersion.status == VersionStatus.ACTIVE,
+            InventorySnapshot.snapshot_date == effective_date,
+        )
+    )
+    if snapshot is None:
+        if not allow_empty:
+            return None
+        outcome = await sync_inventory_derivation(
+            session,
+            user_id=user_id,
+            effective_date=effective_date,
+            warehouse="",
+            rows=[],
+            source_file=f"回滚重推导-{effective_date.isoformat()}",
+            force=force,
+            deactivate_missing=False,
+        )
+        outcome.warnings.append(
+            ParseIssue(None, "库存", "回滚后无可用库存快照，已清空当日行情")
+        )
+        return outcome
+
+    items = list(
+        (
+            await session.scalars(
+                select(InventoryItem)
+                .where(InventoryItem.snapshot_id == snapshot.id)
+                .order_by(InventoryItem.row_no)
+            )
+        ).all()
+    )
+    rows = [
+        InventoryRow(
+            block=item.block,
+            spec=item.spec,
+            unit_price=item.unit_price,
+            tax_add=item.tax_add,
+            weight_per_piece=item.weight_per_piece,
+            pieces=item.pieces,
+            total_weight=item.total_weight,
+            price_per_piece=item.price_per_piece,
+            packaging=item.packaging,
+            manufacturer=item.manufacturer,
+            row_no=item.row_no,
+        )
+        for item in items
+    ]
+    return await sync_inventory_derivation(
+        session,
+        user_id=user_id,
+        effective_date=effective_date,
+        warehouse=snapshot.warehouse,
+        rows=rows,
+        source_file=snapshot.source_file,
+        force=force,
+    )
 
 
 def _append_conflict_warnings(

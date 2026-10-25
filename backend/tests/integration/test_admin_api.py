@@ -1,7 +1,10 @@
 import io
+import tempfile
 from datetime import date
+from pathlib import Path
 
 import httpx
+import openpyxl
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -82,6 +85,86 @@ async def test_admin_import_inventory_and_rollback(
     imports_after = await app_client.get("/api/admin/imports", headers=headers)
     batch_after = next(row for row in imports_after.json() if row["id"] == payload["batch_id"])
     assert batch_after["status"] == "rolled_back"
+
+
+async def _post_inventory(
+    client: httpx.AsyncClient, headers: dict[str, str], *, price: int
+) -> dict:
+    with tempfile.TemporaryDirectory() as temp_dir:
+        path = Path(temp_dir) / "10.25库存状况表.xlsx"
+        _build_workbook(path, invalid_row=False)
+        workbook = openpyxl.load_workbook(path)
+        workbook.active["B4"] = price
+        workbook.save(path)
+        response = await client.post(
+            "/api/admin/import/inventory",
+            headers=headers,
+            files={
+                "file": (
+                    "10.25库存状况表.xlsx",
+                    path.read_bytes(),
+                    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                )
+            },
+            data={"explicit_date": TODAY.isoformat()},
+        )
+    assert response.status_code == 200, response.text
+    return response.json()
+
+
+def _price(payload: dict, code: str) -> float:
+    return next(item["price"] for item in payload["items"] if item["code"] == code)
+
+
+async def test_inventory_rollback_rederives_quotes(
+    session: AsyncSession, app_client: httpx.AsyncClient
+) -> None:
+    await _create_user(session, "admin", Role.ADMIN)
+    headers = await _login(app_client, "admin")
+    await _post_inventory(app_client, headers, price=3550)
+    second = await _post_inventory(app_client, headers, price=3600)
+
+    quotes = await app_client.get("/api/quotes?page_size=100", headers=headers)
+    assert _price(quotes.json(), "FANG_100X100X2.5X6M_KUNMING") == 3600
+
+    rollback = await app_client.post(
+        f"/api/admin/imports/{second['batch_id']}/rollback", headers=headers
+    )
+    assert rollback.status_code == 200
+    quotes = await app_client.get("/api/quotes?page_size=100", headers=headers)
+    assert _price(quotes.json(), "FANG_100X100X2.5X6M_KUNMING") == 3550
+
+
+async def test_rollback_first_inventory_clears_quotes(
+    session: AsyncSession, app_client: httpx.AsyncClient
+) -> None:
+    await _create_user(session, "admin", Role.ADMIN)
+    headers = await _login(app_client, "admin")
+    first = await _post_inventory(app_client, headers, price=3550)
+
+    rollback = await app_client.post(
+        f"/api/admin/imports/{first['batch_id']}/rollback", headers=headers
+    )
+    assert rollback.status_code == 200
+    quotes = await app_client.get("/api/quotes?page_size=100", headers=headers)
+    assert quotes.json()["total"] == 0
+
+
+async def test_auto_quote_batch_cannot_be_rolled_back(
+    session: AsyncSession, app_client: httpx.AsyncClient
+) -> None:
+    await _create_user(session, "admin", Role.ADMIN)
+    headers = await _login(app_client, "admin")
+    await _post_inventory(app_client, headers, price=3550)
+    imports = (await app_client.get("/api/admin/imports", headers=headers)).json()
+    auto = next(row for row in imports if row["file_name"].startswith("自动生成-"))
+
+    response = await app_client.post(
+        f"/api/admin/imports/{auto['id']}/rollback", headers=headers
+    )
+
+    assert response.status_code == 400
+    assert response.json()["code"] == "AUTO_BATCH_READONLY"
 
 
 async def test_non_admin_cannot_import(
