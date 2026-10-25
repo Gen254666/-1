@@ -66,7 +66,7 @@ async def test_admin_import_inventory_and_rollback(
                 "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
             )
         },
-        data={"explicit_date": TODAY.isoformat()},
+        data={"explicit_date": TODAY.isoformat(), "confirm": "true"},
     )
     assert response.status_code == 200, response.text
     payload = response.json()
@@ -80,7 +80,8 @@ async def test_admin_import_inventory_and_rollback(
     assert any(row["file_name"].startswith("自动生成-") for row in imports.json())
 
     rollback = await app_client.post(
-        f"/api/admin/imports/{payload['batch_id']}/rollback", headers=headers
+        f"/api/admin/imports/{payload['batch_id']}/rollback?confirm=true",
+        headers=headers,
     )
     assert rollback.status_code == 200
 
@@ -121,7 +122,7 @@ async def _post_inventory(
                     "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                 )
             },
-            data={"explicit_date": TODAY.isoformat()},
+            data={"explicit_date": TODAY.isoformat(), "confirm": "true"},
         )
     assert response.status_code == 200, response.text
     return response.json()
@@ -143,7 +144,8 @@ async def test_inventory_rollback_rederives_quotes(
     assert _price(quotes.json(), "FANG_100X100X2.5X6M_KUNMING") == 3600
 
     rollback = await app_client.post(
-        f"/api/admin/imports/{second['batch_id']}/rollback", headers=headers
+        f"/api/admin/imports/{second['batch_id']}/rollback?confirm=true",
+        headers=headers,
     )
     assert rollback.status_code == 200
     quotes = await app_client.get("/api/quotes?page_size=100", headers=headers)
@@ -158,7 +160,8 @@ async def test_rollback_first_inventory_clears_quotes(
     first = await _post_inventory(app_client, headers, price=3550)
 
     rollback = await app_client.post(
-        f"/api/admin/imports/{first['batch_id']}/rollback", headers=headers
+        f"/api/admin/imports/{first['batch_id']}/rollback?confirm=true",
+        headers=headers,
     )
     assert rollback.status_code == 200
     quotes = await app_client.get("/api/quotes?page_size=100", headers=headers)
@@ -175,11 +178,50 @@ async def test_auto_quote_batch_cannot_be_rolled_back(
     auto = next(row for row in imports if row["file_name"].startswith("自动生成-"))
 
     response = await app_client.post(
-        f"/api/admin/imports/{auto['id']}/rollback", headers=headers
+        f"/api/admin/imports/{auto['id']}/rollback?confirm=true",
+        headers=headers,
     )
 
     assert response.status_code == 400
     assert response.json()["code"] == "AUTO_BATCH_READONLY"
+
+
+async def test_import_requires_confirmation(
+    session: AsyncSession, app_client: httpx.AsyncClient
+) -> None:
+    await _create_user(session, "admin", Role.ADMIN)
+    headers = await _login(app_client, "admin")
+
+    response = await app_client.post(
+        "/api/admin/import/inventory",
+        headers=headers,
+        files={
+            "file": (
+                "10.25库存状况表.xlsx",
+                io.BytesIO(_xlsx_bytes()),
+                "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            )
+        },
+        data={"explicit_date": TODAY.isoformat()},
+    )
+
+    assert response.status_code == 400
+    assert response.json()["code"] == "CONFIRMATION_REQUIRED"
+
+
+async def test_rollback_requires_confirmation(
+    session: AsyncSession, app_client: httpx.AsyncClient
+) -> None:
+    await _create_user(session, "admin", Role.ADMIN)
+    headers = await _login(app_client, "admin")
+
+    response = await app_client.post(
+        "/api/admin/imports/00000000-0000-0000-0000-000000000000/rollback",
+        headers=headers,
+    )
+
+    assert response.status_code == 400
+    assert response.json()["code"] == "CONFIRMATION_REQUIRED"
 
 
 async def test_public_quote_csv_endpoint_removed(

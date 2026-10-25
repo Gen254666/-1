@@ -5,6 +5,7 @@ import {
   Form,
   Input,
   InputNumber,
+  Modal,
   Result,
   Select,
   Table,
@@ -18,7 +19,7 @@ import { useEffect, useState } from "react";
 import { apiDelete, apiGet, apiPost, apiPut, uploadFile } from "../api/client";
 import type { AnomalyConfig, ImportBatch, User } from "../api/types";
 import { useAuth } from "../auth/AuthContext";
-import { isAutoQuoteBatch, joinWarnings } from "../utils/adminImport";
+import { isAutoQuoteBatch, joinWarnings, rollbackPath } from "../utils/adminImport";
 
 function ImportsTab() {
   const [imports, setImports] = useState<ImportBatch[]>([]);
@@ -33,7 +34,9 @@ function ImportsTab() {
   const handleUpload = async (file: File) => {
     setUploading(true);
     try {
-      const outcome = await uploadFile<any>("/api/admin/import/inventory", file);
+      const outcome = await uploadFile<any>("/api/admin/import/inventory", file, {
+        confirm: "true",
+      });
       const derived =
         `新增点位 ${outcome.derived_points_created}，更新 ${outcome.derived_points_updated}，` +
         `停用 ${outcome.derived_points_deactivated}，自动生成报价 ${outcome.derived_quotes} 条`;
@@ -54,20 +57,28 @@ function ImportsTab() {
     }
   };
 
-  const rollback = async (id: string) => {
-    try {
-      const result = await apiPost<{ derived?: { warnings?: string[] } }>(
-        `/api/admin/imports/${id}/rollback`,
-      );
-      message.success("已回滚");
-      const warningText = joinWarnings(result.derived?.warnings);
-      if (warningText) {
-        message.warning(warningText);
-      }
-      load();
-    } catch (error) {
-      message.error((error as Error).message);
-    }
+  const rollback = (id: string) => {
+    Modal.confirm({
+      title: "确认回滚？",
+      content: "回滚会恢复上一版本并重新推导当日报价，是否继续？",
+      okText: "确认回滚",
+      cancelText: "取消",
+      onOk: async () => {
+        try {
+          const result = await apiPost<{ derived?: { warnings?: string[] } }>(
+            rollbackPath(id),
+          );
+          message.success("已回滚");
+          const warningText = joinWarnings(result.derived?.warnings);
+          if (warningText) {
+            message.warning(warningText);
+          }
+          load();
+        } catch (error) {
+          message.error((error as Error).message);
+        }
+      },
+    });
   };
 
   return (
@@ -77,7 +88,13 @@ function ImportsTab() {
           accept=".xlsx"
           showUploadList={false}
           beforeUpload={(file) => {
-            void handleUpload(file as File);
+            Modal.confirm({
+              title: "确认导入库存？",
+              content: "导入会更新点位并覆盖当日报价，是否继续？",
+              okText: "确认导入",
+              cancelText: "取消",
+              onOk: () => handleUpload(file as File),
+            });
             return false;
           }}
         >

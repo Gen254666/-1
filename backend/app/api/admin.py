@@ -8,7 +8,7 @@ from datetime import date
 from pathlib import Path
 from typing import Any
 
-from fastapi import APIRouter, Depends, File, Form, Request, UploadFile
+from fastapi import APIRouter, Depends, File, Form, Query, Request, UploadFile
 from pydantic import BaseModel, Field
 from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -170,6 +170,7 @@ async def import_inventory_endpoint(
     request: Request,
     file: UploadFile = File(...),
     explicit_date: date | None = Form(None),
+    confirm: bool = Form(False),
     user: User = Depends(require_admin),
     session: AsyncSession = Depends(get_db_session),
     redis: Any | None = Depends(get_redis_client),
@@ -177,6 +178,8 @@ async def import_inventory_endpoint(
 ) -> dict[str, Any]:
     if Path(file.filename or "").suffix.lower() != ".xlsx":
         raise ApiError(400, "INVALID_UPLOAD", "库存导入只支持 .xlsx 文件")
+    if not confirm:
+        raise ApiError(400, "CONFIRMATION_REQUIRED", "请确认库存导入操作")
     temp_dir, path = await _save_upload(file)
     try:
         outcome = await import_inventory(
@@ -210,11 +213,14 @@ async def import_inventory_endpoint(
 async def rollback_import_endpoint(
     batch_id: uuid.UUID,
     request: Request,
+    confirm: bool = Query(False),
     user: User = Depends(require_admin),
     session: AsyncSession = Depends(get_db_session),
     redis: Any | None = Depends(get_redis_client),
     _rate_limit: None = Depends(import_rate_limit),
 ) -> dict[str, Any]:
+    if not confirm:
+        raise ApiError(400, "CONFIRMATION_REQUIRED", "请确认回滚操作")
     batch = await session.get(ImportBatch, batch_id)
     if batch is None:
         raise ApiError(404, "NOT_FOUND", "导入批次不存在")
