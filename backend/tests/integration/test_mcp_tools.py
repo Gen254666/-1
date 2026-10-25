@@ -182,6 +182,10 @@ async def test_mcp_tools_contracts(session: AsyncSession) -> None:
     _assert_envelope(meta, "table")
     assert any(row["code"] == "P1" for row in meta["artifact"]["payload"]["rows"])
 
+    limited_meta = await get_meta(session, ctx, limit=1)
+    assert limited_meta["artifact"]["payload"]["total"] >= 2
+    assert len(limited_meta["artifact"]["payload"]["rows"]) == 1
+
     quotes = await get_quotes(session, ctx)
     _assert_envelope(quotes, "cards")
     assert quotes["artifact"]["payload"]["items"][0]["price"] == 3550.0
@@ -242,6 +246,7 @@ async def test_generate_daily_report_requires_admin(session: AsyncSession) -> No
     _assert_envelope(allowed, "report")
     assert allowed["artifact"]["payload"]["report_date"] == TODAY.isoformat()
     assert allowed["artifact"]["payload"]["disclaimer"] == "报告免责"
+    assert allowed["artifact"]["payload"]["quotes_total"] == 2
 
 
 def test_require_context_without_context() -> None:

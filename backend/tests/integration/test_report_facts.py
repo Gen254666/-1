@@ -16,8 +16,8 @@ from steel_core.versioning.service import create_import_batch, create_version
 pytestmark = pytest.mark.integration
 
 REPORT_DATE = date(2026, 10, 23)
-KUNMING_CODE = "REJUAN_4.75X1500_KUNMING"
-CHENGDU_CODE = "REJUAN_4.75X1500_CHENGDU"
+FANG_CODE = "FANG_100X100X2.5X6M_KUNMING"
+JU_CODE = "JU_100X150X2.5X6M_KUNMING"
 
 
 async def _make_user(session: AsyncSession) -> User:
@@ -31,15 +31,17 @@ async def _make_user(session: AsyncSession) -> User:
     return user
 
 
-async def _make_point(session: AsyncSession, code: str, region: str) -> PricePoint:
+async def _make_point(
+    session: AsyncSession, code: str, region: str, *, category: str, spec: str
+) -> PricePoint:
     point = PricePoint(
         scope=PointScope.PUBLIC,
         owner_user_id=None,
         code=code,
-        category="热卷",
-        spec="4.75×1500×C",
+        category=category,
+        spec=spec,
         region=region,
-        source="mysteel",
+        source="inventory",
         unit="元/吨",
     )
     session.add(point)
@@ -95,17 +97,21 @@ async def _add_quote(
 
 async def test_build_daily_report_facts(session: AsyncSession) -> None:
     owner = await _make_user(session)
-    kunming = await _make_point(session, KUNMING_CODE, "昆明")
-    chengdu = await _make_point(session, CHENGDU_CODE, "成都")
+    fang = await _make_point(
+        session, FANG_CODE, "昆明", category="方管", spec="100×100×2.5×6m"
+    )
+    ju = await _make_point(
+        session, JU_CODE, "昆明", category="矩管", spec="100×150×2.5×6m"
+    )
 
-    for offset, kunming_price, chengdu_price in [
+    for offset, fang_price, ju_price in [
         (1, "3500", "3400"),
         (0, "3550", "3480"),
     ]:
         quote_date = REPORT_DATE - timedelta(days=offset)
         version = await _make_version(session, owner, quote_date)
-        await _add_quote(session, version, kunming, quote_date, kunming_price)
-        await _add_quote(session, version, chengdu, quote_date, chengdu_price)
+        await _add_quote(session, version, fang, quote_date, fang_price)
+        await _add_quote(session, version, ju, quote_date, ju_price)
 
     inventory_version = await _make_version(
         session, owner, REPORT_DATE, dataset_type=DatasetType.INVENTORY
@@ -148,7 +154,7 @@ async def test_build_daily_report_facts(session: AsyncSession) -> None:
     assert facts.spreads[0].latest == Decimal("70")
     assert facts.disclaimer == "报告免责"
     assert {source["code"] for source in facts.sources if source["type"] == "quote"} == {
-        KUNMING_CODE,
-        CHENGDU_CODE,
+        FANG_CODE,
+        JU_CODE,
     }
     assert any(source["type"] == "inventory" for source in facts.sources)

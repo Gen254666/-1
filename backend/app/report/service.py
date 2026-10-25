@@ -10,7 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.llm.providers import AllProvidersFailed, CompletionClient
 from steel_core.db.models.governance import DailyReport
-from steel_core.report.facts import build_daily_report_facts
+from steel_core.report.facts import build_daily_report_facts, report_quote_highlights
 
 REPORT_PROMPT = (
     "你是钢材行情分析师。根据给定的事实数据写一份中文日报，"
@@ -28,8 +28,10 @@ async def generate_and_save_report(
 ) -> DailyReport:
     facts = await build_daily_report_facts(session, user_id=user_id, report_date=report_date)
     effective_date = facts.as_of or date.today()
+    highlights = report_quote_highlights(facts.quotes)
     facts_payload = {
         "report_date": effective_date.isoformat(),
+        "quotes_total": len(facts.quotes),
         "quotes": [
             {
                 "code": quote.code,
@@ -38,7 +40,7 @@ async def generate_and_save_report(
                 "price": float(quote.price),
                 "change": float(quote.change) if quote.change is not None else None,
             }
-            for quote in facts.quotes
+            for quote in highlights
         ],
         "inventory": {
             "date": facts.inventory.snapshot_date.isoformat()
@@ -100,6 +102,8 @@ def _facts_markdown(facts_payload: dict[str, Any], disclaimer: str) -> str:
         "## 报价概览",
     ]
     quotes = facts_payload.get("quotes") or []
+    quotes_total = facts_payload.get("quotes_total", len(quotes))
+    lines.append(f"- 报价总数 {quotes_total}，展示 {len(quotes)} 条")
     if quotes:
         for quote in quotes:
             change = quote.get("change")

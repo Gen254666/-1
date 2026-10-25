@@ -21,16 +21,25 @@ from steel_core.query.service import (
 )
 
 SPREAD_PAIRS = [
-    ("REJUAN_4.75X1500_KUNMING", "REJUAN_4.75X1500_CHENGDU", "热卷 昆明-成都"),
     (
-        "LUOWENG_HBR400E_PHI20_KUNMING",
-        "LUOWENG_HBR400E_PHI20_GUIYANG",
-        "螺纹 昆明-贵阳",
+        "FANG_100X100X2.5X6M_KUNMING",
+        "JU_100X150X2.5X6M_KUNMING",
+        "方管-矩管价差",
     ),
-    ("FANG_100X100X2.5_KUNMING", "REJUAN_4.75X1500_KUNMING", "方管-热卷价差"),
 ]
 
 DEFAULT_REPORT_DISCLAIMER = "本报告基于公开与内部数据整理，仅供参考，不构成投资或交易建议。"
+
+
+def report_quote_highlights(
+    quotes: list[QuoteRecord], limit: int = 30
+) -> list[QuoteRecord]:
+    with_change = [quote for quote in quotes if quote.change is not None]
+    if with_change:
+        ranked = sorted(with_change, key=lambda quote: abs(quote.change), reverse=True)
+    else:
+        ranked = sorted(quotes, key=lambda quote: (quote.category, quote.spec, quote.code))
+    return ranked[:limit]
 
 
 @dataclass

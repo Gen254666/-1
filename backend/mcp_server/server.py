@@ -50,12 +50,18 @@ def _parse_uuids(values: list[str] | None) -> list[UUID] | None:
 
 
 @mcp.tool()
-async def get_meta(category: str | None = None) -> dict[str, Any]:
+async def get_meta(
+    category: str | None = None,
+    query: str | None = None,
+    limit: int = 100,
+) -> dict[str, Any]:
     ctx = _context()
     if isinstance(ctx, dict):
         return ctx
     async with mcp_session() as session:
-        return await tools.get_meta(session, ctx, category=category)
+        return await tools.get_meta(
+            session, ctx, category=category, query=query, limit=limit
+        )
 
 
 @mcp.tool()
@@ -65,7 +71,7 @@ async def get_quotes(
     region: str | None = None,
     quote_date: date | None = None,
     page: int = 1,
-    page_size: int = 20,
+    page_size: int = 50,
     use_cache: bool = True,
 ) -> dict[str, Any]:
     ctx = _context()

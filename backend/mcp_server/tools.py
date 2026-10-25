@@ -40,7 +40,11 @@ from steel_core.query.service import (
     get_quotes as query_quotes,
 )
 from steel_core.quote.service import QuoteValidationError, calculate_quote
-from steel_core.report.facts import ReportFacts, build_daily_report_facts
+from steel_core.report.facts import (
+    ReportFacts,
+    build_daily_report_facts,
+    report_quote_highlights,
+)
 
 DEFAULT_QUOTE_DISCLAIMER = "本报价基于当日库存与行情数据生成，仅供参考，最终成交价以合同为准。"
 
@@ -170,9 +174,24 @@ def _chart_payload(
 
 
 async def get_meta(
-    session: AsyncSession, ctx: UserContext, *, category: str | None = None
+    session: AsyncSession,
+    ctx: UserContext,
+    *,
+    category: str | None = None,
+    query: str | None = None,
+    limit: int = 100,
 ) -> dict[str, Any]:
     points = await list_points(session, user_id=ctx.user_id, category=category)
+    keyword = (query or "").strip().lower()
+    if keyword:
+        points = [
+            point
+            for point in points
+            if keyword in f"{point.code} {point.spec}".lower()
+        ]
+    total = len(points)
+    limit = max(1, min(limit, 500))
+    shown = points[:limit]
     latest_quotes = await query_quotes(
         session, user_id=ctx.user_id, category=category, page=1, page_size=1
     )
@@ -180,6 +199,7 @@ async def get_meta(
     latest_quote_date = latest_quotes.items[0].quote_date if latest_quotes.items else None
     payload = {
         "columns": ["code", "category", "spec", "region", "source", "unit", "point_id"],
+        "total": total,
         "rows": [
             {
                 "point_id": str(point.id),
@@ -190,16 +210,17 @@ async def get_meta(
                 "source": point.source,
                 "unit": point.unit,
             }
-            for point in points
+            for point in shown
         ],
     }
     return _ok(
-        f"可用点位 {len(points)} 个；最新报价日期 {latest_quote_date or '无'}；"
+        f"可用点位 {total} 个，本次返回 {len(shown)} 个；"
+        f"最新报价日期 {latest_quote_date or '无'}；"
         f"最新库存日期 {inventory.snapshot_date or '无'}",
         "table",
         payload,
         as_of=latest_quote_date,
-        source="mysteel",
+        source="inventory",
     )
 
 
@@ -212,7 +233,7 @@ async def get_quotes(
     region: str | None = None,
     quote_date: date | None = None,
     page: int = 1,
-    page_size: int = 20,
+    page_size: int = 50,
     use_cache: bool = True,
 ) -> dict[str, Any]:
     try:
@@ -514,9 +535,11 @@ async def generate_daily_report(
     facts: ReportFacts = await build_daily_report_facts(
         session, user_id=ctx.user_id, report_date=report_date
     )
+    highlights = report_quote_highlights(facts.quotes)
     payload = {
         "report_date": facts.as_of.isoformat() if facts.as_of else None,
-        "quotes": [_quote_payload(quote) for quote in facts.quotes],
+        "quotes_total": len(facts.quotes),
+        "quotes": [_quote_payload(quote) for quote in highlights],
         "inventory": _inventory_payload(facts.inventory),
         "spreads": [_spread_payload(series) for series in facts.spreads],
         "anomalies": [_anomaly_payload(anomaly) for anomaly in facts.anomalies],
