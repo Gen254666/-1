@@ -1,4 +1,8 @@
-import { quoteToMarkdown } from "../utils/export";
+import { escapeMarkdown, quoteToMarkdown } from "../utils/export";
+
+test("escapes markdown control characters", () => {
+  expect(escapeMarkdown("A*B_[C]")).toBe("A\\*B\\_\\[C\\]");
+});
 
 test("serializes quote to markdown with sources and disclaimer", () => {
   const markdown = quoteToMarkdown({

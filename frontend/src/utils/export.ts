@@ -1,15 +1,19 @@
 import type { QuoteResult } from "../api/types";
 
+export function escapeMarkdown(value: string): string {
+  return value.replace(/([\\`*_{}\[\]|<>])/g, "\\$1");
+}
+
 export function quoteToMarkdown(quote: QuoteResult): string {
   const rows = quote.lines.map(
     (line) =>
-      `| ${line.spec} | ${line.unit_price.toFixed(2)} | ${line.weight_per_piece.toFixed(3)} | ${line.pieces} | ${line.price_per_piece.toFixed(2)} | ${line.subtotal.toFixed(2)} |`,
+      `| ${escapeMarkdown(line.spec)} | ${line.unit_price.toFixed(2)} | ${line.weight_per_piece.toFixed(3)} | ${line.pieces} | ${line.price_per_piece.toFixed(2)} | ${line.subtotal.toFixed(2)} |`,
   );
   const sources = quote.sources
     .map((source) => {
       const parts = Object.entries(source)
         .filter(([, value]) => value !== null && value !== undefined && value !== "")
-        .map(([key, value]) => `${key}: ${value}`);
+        .map(([key, value]) => `${escapeMarkdown(key)}: ${escapeMarkdown(String(value))}`);
       return `- ${parts.join("，")}`;
     })
     .join("\n");
@@ -32,9 +36,11 @@ export function quoteToMarkdown(quote: QuoteResult): string {
     sources || "无",
     "",
     "## 风险提示",
-    ...(quote.warnings.length ? quote.warnings.map((warning) => `- ${warning}`) : ["- 无"]),
+    ...(quote.warnings.length
+      ? quote.warnings.map((warning) => `- ${escapeMarkdown(warning)}`)
+      : ["- 无"]),
     "",
-    `> ${quote.disclaimer}`,
+    `> ${escapeMarkdown(quote.disclaimer)}`,
     "",
   ].join("\n");
 }

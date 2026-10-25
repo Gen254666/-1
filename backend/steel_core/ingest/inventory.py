@@ -41,6 +41,9 @@ FIELD_LABELS = {
     "total_weight": "重量",
     "price_per_piece": "支售价",
 }
+MAX_NUMERIC_VALUE = Decimal("1000000")
+POSITIVE_NUMERIC_FIELDS = {"unit_price", "weight_per_piece", "price_per_piece"}
+NON_NEGATIVE_NUMERIC_FIELDS = {"pieces", "total_weight", "tax_add"}
 
 
 @dataclass(frozen=True)
@@ -139,6 +142,7 @@ def parse_inventory_workbook(
                 else None
             )
 
+            _check_numeric_bounds(row_no, values, errors)
             _check_price_formula(
                 row_no,
                 values["unit_price"],
@@ -334,6 +338,31 @@ def _to_decimal(
     except InvalidOperation:
         errors.append(ParseIssue(row_no, label, f"{label} 解析失败: {value!r}"))
         return None
+
+
+def _check_numeric_bounds(
+    row_no: int,
+    values: dict[str, Any],
+    errors: list[ParseIssue],
+) -> None:
+    for field_name in POSITIVE_NUMERIC_FIELDS:
+        value = values.get(field_name)
+        if value is None:
+            continue
+        label = FIELD_LABELS[field_name]
+        if value <= 0:
+            errors.append(ParseIssue(row_no, label, f"{label} 必须大于 0"))
+        elif value > MAX_NUMERIC_VALUE:
+            errors.append(ParseIssue(row_no, label, f"{label} 超出上限 {MAX_NUMERIC_VALUE}"))
+    for field_name in NON_NEGATIVE_NUMERIC_FIELDS:
+        value = values.get(field_name)
+        if value is None:
+            continue
+        label = FIELD_LABELS[field_name]
+        if value < 0:
+            errors.append(ParseIssue(row_no, label, f"{label} 不能为负数"))
+        elif value > MAX_NUMERIC_VALUE:
+            errors.append(ParseIssue(row_no, label, f"{label} 超出上限 {MAX_NUMERIC_VALUE}"))
 
 
 def _check_price_formula(

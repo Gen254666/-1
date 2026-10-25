@@ -14,6 +14,7 @@ from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth.dependencies import require_admin
+from app.core.config import get_settings
 from app.core.db import get_db_session
 from app.core.errors import ApiError
 from app.core.redis import get_redis_client
@@ -110,10 +111,24 @@ async def _save_upload(file: UploadFile) -> tuple[Path, Path]:
         await file.close()
         raise ApiError(400, "INVALID_UPLOAD", exc.message) from exc
 
-    temp_dir = Path(tempfile.mkdtemp(prefix="steel-import-"))
+    settings = get_settings()
+    if settings.upload_tmp_dir:
+        upload_root = Path(settings.upload_tmp_dir)
+        upload_root.mkdir(parents=True, exist_ok=True)
+        temp_dir = Path(tempfile.mkdtemp(prefix="steel-import-", dir=upload_root))
+    else:
+        temp_dir = Path(tempfile.mkdtemp(prefix="steel-import-"))
+    try:
+        temp_dir.chmod(0o700)
+    except OSError:
+        pass
     basename = Path(filename).name
     path = temp_dir / basename
     path.write_bytes(content)
+    try:
+        path.chmod(0o600)
+    except OSError:
+        pass
     await file.close()
     return temp_dir, path
 
@@ -156,6 +171,8 @@ async def import_inventory_endpoint(
     session: AsyncSession = Depends(get_db_session),
     redis: Any | None = Depends(get_redis_client),
 ) -> dict[str, Any]:
+    if Path(file.filename or "").suffix.lower() != ".xlsx":
+        raise ApiError(400, "INVALID_UPLOAD", "库存导入只支持 .xlsx 文件")
     temp_dir, path = await _save_upload(file)
     try:
         outcome = await import_inventory(

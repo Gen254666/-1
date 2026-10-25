@@ -65,6 +65,52 @@ def _build_workbook(
     workbook.save(path)
 
 
+def _set_cell(path: Path, row: int, column: int, value: object) -> None:
+    workbook = openpyxl.load_workbook(path)
+    workbook.active.cell(row=row, column=column, value=value)
+    workbook.save(path)
+
+
+def test_negative_price_is_row_error(tmp_path: Path) -> None:
+    path = tmp_path / "10.25库存状况表.xlsx"
+    _build_workbook(path, invalid_row=False)
+    _set_cell(path, row=4, column=2, value=-1)
+
+    result = parse_inventory_workbook(path, explicit_date=date(2026, 10, 25))
+
+    assert any(issue.field == "单价" and issue.row_no == 4 for issue in result.errors)
+
+
+def test_absurd_price_is_row_error(tmp_path: Path) -> None:
+    path = tmp_path / "10.25库存状况表.xlsx"
+    _build_workbook(path, invalid_row=False)
+    _set_cell(path, row=4, column=2, value=10_000_000)
+
+    result = parse_inventory_workbook(path, explicit_date=date(2026, 10, 25))
+
+    assert any(issue.field == "单价" and issue.row_no == 4 for issue in result.errors)
+
+
+def test_negative_pieces_is_row_error(tmp_path: Path) -> None:
+    path = tmp_path / "10.25库存状况表.xlsx"
+    _build_workbook(path, invalid_row=False)
+    _set_cell(path, row=4, column=5, value=-5)
+
+    result = parse_inventory_workbook(path, explicit_date=date(2026, 10, 25))
+
+    assert any(issue.field == "支数" and issue.row_no == 4 for issue in result.errors)
+
+
+def test_zero_weight_is_row_error(tmp_path: Path) -> None:
+    path = tmp_path / "10.25库存状况表.xlsx"
+    _build_workbook(path, invalid_row=False)
+    _set_cell(path, row=4, column=4, value=0)
+
+    result = parse_inventory_workbook(path, explicit_date=date(2026, 10, 25))
+
+    assert any(issue.field == "支重" and issue.row_no == 4 for issue in result.errors)
+
+
 def test_parse_inventory_workbook(tmp_path: Path) -> None:
     path = tmp_path / "10.23库存状况表.xlsx"
     _build_workbook(path)

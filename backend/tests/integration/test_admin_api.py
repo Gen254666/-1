@@ -210,6 +210,22 @@ async def test_invalid_upload_is_rejected(
     assert response.json()["code"] == "INVALID_UPLOAD"
 
 
+async def test_inventory_import_rejects_csv(
+    session: AsyncSession, app_client: httpx.AsyncClient
+) -> None:
+    await _create_user(session, "admin", Role.ADMIN)
+    headers = await _login(app_client, "admin")
+
+    response = await app_client.post(
+        "/api/admin/import/inventory",
+        headers=headers,
+        files={"file": ("quotes.csv", b"point_id,date\n", "text/csv")},
+    )
+
+    assert response.status_code == 400
+    assert response.json()["code"] == "INVALID_UPLOAD"
+
+
 async def test_points_permissions(session: AsyncSession, app_client: httpx.AsyncClient) -> None:
     await _create_user(session, "alice")
     await _create_user(session, "admin", Role.ADMIN)
