@@ -255,6 +255,17 @@ pg_restore -d "$DATABASE_URL" backups/steel_market-<时间戳>.dump
 - 过期文档默认不参与检索，管理员可在工具调用时显式包含
 - 私有知识库集合结构已预留，本期仅开放公共知识库
 
+### 预置知识库内容
+
+`knowledge/` 已预置 4 篇已确认内容的文档：公司业务概况、产品与规格、报价规则、常见问答。批量导入：
+
+```bash
+docker compose exec -T agent python -m steel_core.cli.import_knowledge \
+  --dir /app/knowledge --doc-type internal_rule --source local
+```
+
+`knowledge/_drafts/` 是交货运费、质量异议、付款账期 3 份待业务确认的模板，默认不导入；补充确认后再移出 `_drafts` 并重新执行导入。知识库写入 Chroma 共享卷，会随每日备份一起加密保存。
+
 ## 我的点位与私有报价
 
 普通用户在「我的点位」页面创建自定义私有点位（品类、规格、地区），并按日期录入价格、涨跌和备注。私有报价使用独立的按用户版本链，不会覆盖公共行情，也不会被其他用户或管理员读取。

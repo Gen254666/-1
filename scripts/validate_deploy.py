@@ -72,6 +72,10 @@ check("--proxy-headers" in agent_command, "agent must trust proxy headers")
 check("mcp-server" in agent.get("depends_on", {}), "agent must depend on mcp-server")
 check("chroma:/app/chroma_data" in mcp.get("volumes", []), "mcp chroma volume missing")
 check("chroma:/app/chroma_data" in agent.get("volumes", []), "agent chroma volume missing")
+check(
+    "./knowledge:/app/knowledge:ro" in agent.get("volumes", []),
+    "agent knowledge mount missing",
+)
 
 frontend_build = frontend.get("build", {})
 check(

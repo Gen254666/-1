@@ -84,6 +84,7 @@ services:
       LLM_FALLBACK_ORDER: ${LLM_FALLBACK_ORDER:-claude,deepseek,doubao}
     volumes:
       - chroma:/app/chroma_data
+      - ./knowledge:/app/knowledge:ro
     depends_on:
       postgres:
         condition: service_healthy
