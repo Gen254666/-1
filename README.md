@@ -166,6 +166,17 @@ docker compose --env-file .env.prod \
 
 安全默认值：登录失败 5 次锁定 15 分钟、会话空闲 60 分钟登出、对话 20 次/分钟、数据接口 120 次/分钟、导入 5 次/分钟、每用户每日 LLM 请求 200 次；均可在 `.env` 调整。导入和回滚必须二次确认并带 `confirm=true`。
 
+### 密钥轮换
+
+`.env.prod` 不提交到仓库、权限保持 600，应用和接口均不返回密钥。建议每 90 天或人员变动时轮换：
+
+1. 用 `python scripts/generate_secrets.py` 生成新值，只替换需要轮换的项。
+2. `JWT_SECRET` / `MCP_SERVICE_SECRET`：更新 `.env.prod` 后重启 agent 与 mcp-server；所有现有登录会话会被强制失效，用户需重新登录。
+3. 数据库密码：在 PostgreSQL 执行 `ALTER ROLE steel_agent PASSWORD '...'`（`steel_mcp` 同理），同步更新 `.env.prod` 的 `AGENT_DB_PASSWORD` / `MCP_DB_PASSWORD`，再重启相关容器。
+4. LLM Key：在厂商控制台先创建新 Key、更新 `.env.prod`、重启 agent，确认可用后再禁用旧 Key。
+5. `BACKUP_PASSPHRASE`：新备份使用新口令；旧备份仍需旧口令解密，保留旧口令直到旧备份过保留期。
+6. 轮换后验证 `/readyz`、登录、一次库存导入（先取消确认）和一次 MCP 对话。
+
 ## 备份与恢复
 
 生产备份必须设置加密口令；备份目录 0700、文件 0600：
