@@ -82,26 +82,18 @@ cp .env.example .env
 
 ## 业务数据校验
 
-每日正式导入前，先用真实库存 Excel 和 Mysteel 16 点位 CSV 做一次校验：
+每日上传库存 Excel 前先做一次校验：
 
 ```bash
 cd backend
 uv run python ../scripts/validate_business_data.py \
-  --inventory "../10.23库存状况表（部分价格已调）.xlsx" \
-  --quotes "../data/templates/mysteel_quotes_16points.csv" \
-  --date 2026-10-24
+  --inventory "../10.25库存状况表（部分价格已调）.xlsx" \
+  --date 2026-10-25
 ```
 
-模板 `data/templates/mysteel_quotes_16points.csv` 已预置 16 个点位，只需填写 `price`、`change`、`note`。校验会检查：库存区块与行级错误、支售价公式偏差、点位是否齐全、报价日期是否一致、方管/矩管跟踪点能否在库存中匹配。部分点位暂缺时可加 `--allow-missing`，缺项记为 warning。
+校验会输出库存行数、唯一规格、重复规格、缺单价/缺支重规格、可报价规格数和点位编码结果。
 
-校验通过后导入数据库：
-
-```bash
-cd backend
-uv run python ../scripts/import_quotes_file.py \
-  --file ../data/inbox/quotes_2026-10-24.csv \
-  --source inventory
-```
+校验通过后，在前端“管理 → 导入数据”上传库存 Excel。系统会自动创建/更新方管、矩管点位，并用库存单价生成当日行情，不需要再手工填写 Mysteel 报价 CSV。部分规格缺单价时仍会建点位但不生成行情；缺支重的规格可以展示行情，但不能生成客户报价。
 
 ## Docker 部署
 

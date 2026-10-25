@@ -35,9 +35,7 @@ from steel_core.ingest.service import (
     ImportOutcome,
     ImportValidationError,
     import_inventory,
-    import_quotes,
 )
-from steel_core.query.service import list_points
 from steel_core.security import hash_password
 from steel_core.versioning.service import VersionNotFoundError, rollback_version
 
@@ -162,44 +160,6 @@ async def import_inventory_endpoint(
     try:
         outcome = await import_inventory(
             session, user_id=user.id, path=path, explicit_date=explicit_date
-        )
-    except ImportValidationError as exc:
-        raise ApiError(
-            400,
-            "IMPORT_VALIDATION_FAILED",
-            "导入校验失败",
-            {
-                "batch_id": str(exc.batch_id),
-                "errors": [
-                    {"row_no": error.row_no, "field": error.field, "message": error.message}
-                    for error in exc.errors
-                ],
-            },
-        ) from exc
-    finally:
-        shutil.rmtree(temp_dir, ignore_errors=True)
-
-    await Cache(redis).invalidate_date(outcome.effective_date)
-    return _outcome_dict(outcome)
-
-
-@admin_router.post("/import/quotes")
-async def import_quotes_endpoint(
-    file: UploadFile = File(...),
-    user: User = Depends(require_admin),
-    session: AsyncSession = Depends(get_db_session),
-    redis: Any | None = Depends(get_redis_client),
-) -> dict[str, Any]:
-    points = await list_points(session, user_id=user.id)
-    allowed_points = {point.code: point.id for point in points}
-    temp_dir, path = await _save_upload(file)
-    try:
-        outcome = await import_quotes(
-            session,
-            user_id=user.id,
-            path=path,
-            allowed_points=allowed_points,
-            expected_point_codes=set(allowed_points),
         )
     except ImportValidationError as exc:
         raise ApiError(

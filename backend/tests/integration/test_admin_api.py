@@ -167,6 +167,17 @@ async def test_auto_quote_batch_cannot_be_rolled_back(
     assert response.json()["code"] == "AUTO_BATCH_READONLY"
 
 
+async def test_public_quote_csv_endpoint_removed(
+    session: AsyncSession, app_client: httpx.AsyncClient
+) -> None:
+    await _create_user(session, "admin", Role.ADMIN)
+    headers = await _login(app_client, "admin")
+
+    response = await app_client.post("/api/admin/import/quotes", headers=headers)
+
+    assert response.status_code in {404, 405}
+
+
 async def test_non_admin_cannot_import(
     session: AsyncSession, app_client: httpx.AsyncClient
 ) -> None:

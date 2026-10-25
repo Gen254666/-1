@@ -32,13 +32,14 @@ function ImportsTab() {
   const handleUpload = async (file: File) => {
     setUploading(true);
     try {
-      const isCsv = file.name.toLowerCase().endsWith(".csv");
-      const path = isCsv ? "/api/admin/import/quotes" : "/api/admin/import/inventory";
-      const outcome = await uploadFile<any>(path, file);
+      const outcome = await uploadFile<any>("/api/admin/import/inventory", file);
+      const derived =
+        `新增点位 ${outcome.derived_points_created}，更新 ${outcome.derived_points_updated}，` +
+        `停用 ${outcome.derived_points_deactivated}，自动生成报价 ${outcome.derived_quotes} 条`;
       if (outcome.no_changes) {
-        message.info("数据无变化，已跳过");
+        message.info(`库存数据无变化；${derived}`);
       } else {
-        message.success(`导入成功：${outcome.rows_ok} 行`);
+        message.success(`导入成功：${outcome.rows_ok} 行；${derived}`);
       }
       load();
     } catch (error) {
@@ -62,7 +63,7 @@ function ImportsTab() {
     <div className="page-stack">
       <Card title="导入数据">
         <Upload
-          accept=".xlsx,.csv"
+          accept=".xlsx"
           showUploadList={false}
           beforeUpload={(file) => {
             void handleUpload(file as File);
@@ -70,7 +71,7 @@ function ImportsTab() {
           }}
         >
           <Button icon={<UploadOutlined />} loading={uploading}>
-            上传库存 Excel 或报价 CSV
+            上传库存 Excel
           </Button>
         </Upload>
       </Card>
