@@ -4,6 +4,7 @@ import argparse
 import os
 import secrets
 import stat
+import subprocess
 import sys
 from pathlib import Path
 
@@ -26,6 +27,21 @@ def render(values: dict[str, str]) -> str:
     return "\n".join(lines) + "\n"
 
 
+def restrict_permissions(path: Path) -> None:
+    path.chmod(stat.S_IRUSR | stat.S_IWUSR)
+    if os.name != "nt":
+        return
+    username = os.environ.get("USERNAME")
+    if not username:
+        return
+    subprocess.run(
+        ["icacls", str(path), "/inheritance:r", "/grant:r", f"{username}:(F)"],
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="生成生产环境强随机密钥")
     parser.add_argument("--write", type=Path, default=None, help="写入指定 env 文件")
@@ -44,8 +60,8 @@ def main() -> int:
     fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
     with os.fdopen(fd, "w", encoding="utf-8") as handle:
         handle.write(render(values))
-    path.chmod(stat.S_IRUSR | stat.S_IWUSR)
-    print(f"已写入 {path}（权限 600）")
+    restrict_permissions(path)
+    print(f"已写入 {path}（权限仅限当前用户）")
     return 0
 
 
