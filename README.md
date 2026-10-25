@@ -4,7 +4,7 @@
 
 ## 当前状态
 
-MVP 主要模块已完成：数据导入/版本回滚、行情查询、报价与日报、MCP 工具、Agent 对话和 React 前端。集成回归与部署演练进行中。
+MVP 主要模块已完成：数据导入/版本回滚、行情查询、报价与日报、MCP 工具、Agent 对话和 React 前端。Docker 部署已在本机验证通过。
 
 ## 目录结构
 
@@ -115,7 +115,7 @@ docker compose run --rm agent python -m steel_core.db.seed
 docker compose up -d
 ```
 
-访问 `http://localhost`。MCP Server 监听内部端口 8001，Agent 8000，Chroma 数据在 `chroma` 卷。
+访问 `http://localhost:8080`（可通过 `.env` 的 `FRONTEND_PORT` 调整）。MCP Server 监听内部端口 8001，Agent 8000，Chroma 数据在 `chroma` 卷。
 
 部署前可先做静态校验（无需 Docker）：
 
@@ -124,7 +124,7 @@ cd backend
 uv run python ../scripts/validate_deploy.py
 ```
 
-> 开发机已完成 Memurai（Redis 7.2.5 兼容）验证；Docker 未安装，compose 仅做静态校验，需在目标 Linux 主机实际执行。本地开发请用上面的 pgserver 方案。
+> 本机已在 Windows 11 + Docker Desktop（WSL2）完成实际部署验证：镜像构建、迁移、种子、前端/健康检查/登录冒烟均通过。前端默认映射 8080，端口 80 被占用时可通过 `.env` 的 `FRONTEND_PORT` 调整。RAG 嵌入模型首次使用会从 `HF_ENDPOINT`（默认 hf-mirror）下载，并已禁用 Xet 以避免镜像源 401。
 
 ## 备份与恢复
 

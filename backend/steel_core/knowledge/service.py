@@ -257,11 +257,15 @@ def search_knowledge(
 def _embedding_model() -> Any:
     import os
 
-    from fastembed import TextEmbedding
-
     from app.core.config import get_settings
 
+    # huggingface_hub 在导入时读取这些变量，必须早于 fastembed 导入。
     os.environ.setdefault("HF_ENDPOINT", get_settings().hf_endpoint)
+    # hf-mirror 的 Xet CDN 可能返回 401，禁用后走普通下载。
+    os.environ.setdefault("HF_HUB_DISABLE_XET", "1")
+
+    from fastembed import TextEmbedding
+
     return TextEmbedding(model_name="BAAI/bge-small-zh-v1.5")
 
 

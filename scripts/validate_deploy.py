@@ -56,7 +56,8 @@ check(
     frontend_build.get("dockerfile") == "frontend/Dockerfile",
     "frontend Dockerfile mismatch",
 )
-check("80:80" in frontend.get("ports", []), "frontend port 80 missing")
+frontend_ports = [str(port) for port in frontend.get("ports", [])]
+check(any(port.endswith(":80") for port in frontend_ports), "frontend container port 80 missing")
 
 env_text = " ".join(
     str(value)
