@@ -1,12 +1,11 @@
 import {
-  BarChartOutlined,
   DashboardOutlined,
   FileTextOutlined,
   MessageOutlined,
   SettingOutlined,
   TagsOutlined,
 } from "@ant-design/icons";
-import { Button, Layout, Menu, Space, Typography } from "antd";
+import { Avatar, Button, Layout, Menu, Space } from "antd";
 import { Outlet, useLocation, useNavigate } from "react-router-dom";
 
 import { useAuth } from "../auth/AuthContext";
@@ -28,27 +27,41 @@ export function AppLayout() {
       : []),
   ];
 
-  const selected = items.find((item) => location.pathname.startsWith(item.key))?.key ?? "/dashboard";
+  const selected =
+    items.find((item) => location.pathname.startsWith(item.key))?.key ?? "/dashboard";
+  const currentLabel = items.find((item) => item.key === selected)?.label ?? "行情看板";
 
   return (
     <Layout style={{ minHeight: "100vh" }}>
-      <Sider theme="dark" width={200}>
+      <Sider theme="dark" width={228} className="app-sider">
         <div className="brand">
-          <BarChartOutlined /> 钢材行情
+          <span className="brand-mark">品</span>
+          <div className="brand-copy">
+            <strong>品溢钢铁</strong>
+            <span>行情 · 报价</span>
+          </div>
         </div>
         <Menu
+          className="app-menu"
           theme="dark"
           mode="inline"
           selectedKeys={[selected]}
           items={items}
           onClick={({ key }) => navigate(key)}
         />
+        <div className="sider-foot">内部系统 · 仅限授权使用</div>
       </Sider>
       <Layout>
         <Header className="app-header">
-          <Typography.Text strong>{user?.username}</Typography.Text>
-          <Space>
+          <div className="header-context">
+            <span className="header-kicker">品溢钢铁</span>
+            <h2>{currentLabel}</h2>
+          </div>
+          <Space className="header-user" size={10}>
+            <Avatar>{user?.username?.slice(0, 1).toUpperCase()}</Avatar>
+            <span className="header-username">{user?.username}</span>
             <Button
+              type="text"
               onClick={() => {
                 void logout().then(() => navigate("/login"));
               }}

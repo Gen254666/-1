@@ -1,4 +1,4 @@
-import { Card, Tag } from "antd";
+import { Card } from "antd";
 
 import type { QuoteItem } from "../api/types";
 
@@ -14,18 +14,32 @@ export function QuoteCards({ items }: { items: QuoteItem[] }) {
             : item.change > 0
               ? "price-up"
               : "price-down";
+        const changeText =
+          item.change === null
+            ? "-"
+            : `${item.change > 0 ? "+" : ""}${item.change.toFixed(2)}`;
         return (
-          <Card key={item.point_id} size="small" title={`${item.category} ${item.spec}`}>
-            <div className={`quote-price ${changeClass}`}>
-              {item.price.toFixed(2)}
-              <span className="unit"> 元/吨</span>
+          <Card
+            key={item.point_id}
+            size="small"
+            className="quote-card"
+            title={
+              <span className="quote-card-title">
+                <span className="quote-category">{item.category}</span>
+                {item.spec}
+              </span>
+            }
+          >
+            <div className="quote-price-row">
+              <div className={`quote-price ${changeClass}`}>
+                {item.price.toFixed(2)}
+                <span className="unit"> 元/吨</span>
+              </div>
+              <span className={`quote-change ${changeClass}`}>{changeText}</span>
             </div>
             <div className="quote-meta">
-              <Tag>{item.region}</Tag>
-              <span>{item.code}</span>
-            </div>
-            <div className={changeClass}>
-              涨跌：{item.change === null ? "-" : item.change.toFixed(2)}
+              <span className="quote-region">{item.region}</span>
+              <span className="quote-code">{item.code}</span>
             </div>
             <div className="quote-date">{item.quote_date}</div>
           </Card>

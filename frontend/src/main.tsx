@@ -16,7 +16,28 @@ dayjs.locale("zh-cn");
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
-    <ConfigProvider locale={zhCN}>
+    <ConfigProvider
+      locale={zhCN}
+      theme={{
+        token: {
+          colorPrimary: "#1f5f8b",
+          colorInfo: "#1f5f8b",
+          colorLink: "#1f5f8b",
+          borderRadius: 10,
+          fontFamily:
+            '"Microsoft YaHei", "PingFang SC", "Noto Sans SC", system-ui, sans-serif',
+        },
+        components: {
+          Card: { borderRadiusLG: 14 },
+          Button: { borderRadius: 9, controlHeight: 38 },
+          Input: { borderRadius: 9 },
+          InputNumber: { borderRadius: 9 },
+          Select: { borderRadius: 9 },
+          Menu: { itemBorderRadius: 8, itemMarginInline: 8, itemHeight: 42 },
+          Table: { headerBg: "#f5f8fc" },
+        },
+      }}
+    >
       <AuthProvider>
         <BrowserRouter>
           <App />
