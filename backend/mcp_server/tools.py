@@ -536,17 +536,37 @@ async def generate_daily_report(
         session, user_id=ctx.user_id, report_date=report_date
     )
     highlights = report_quote_highlights(facts.quotes)
+    highlight_codes = {quote.code for quote in highlights}
+    changes_unavailable = bool(facts.quotes) and all(
+        quote.change is None for quote in facts.quotes
+    )
+    warnings = list(facts.warnings)
+    if changes_unavailable:
+        warnings.append("首日无涨跌数据，报价明细按品类/规格排列")
+    sources = [
+        source
+        for source in facts.sources
+        if source.get("type") == "inventory"
+        or (source.get("type") == "quote" and source.get("code") in highlight_codes)
+    ]
     payload = {
         "report_date": facts.as_of.isoformat() if facts.as_of else None,
         "quotes_total": len(facts.quotes),
+        "changes_unavailable": changes_unavailable,
         "quotes": [_quote_payload(quote) for quote in highlights],
-        "inventory": _inventory_payload(facts.inventory),
+        "inventory": {
+            "snapshot_date": facts.inventory.snapshot_date.isoformat()
+            if facts.inventory.snapshot_date
+            else None,
+            "warehouse": facts.inventory.warehouse,
+            "total": facts.inventory.total,
+        },
         "spreads": [_spread_payload(series) for series in facts.spreads],
         "anomalies": [_anomaly_payload(anomaly) for anomaly in facts.anomalies],
-        "sources": facts.sources,
+        "sources": sources,
         "disclaimer": facts.disclaimer,
         "as_of": facts.as_of.isoformat() if facts.as_of else None,
-        "warnings": facts.warnings,
+        "warnings": warnings,
     }
     return _ok(
         f"日报事实稿：报价 {len(facts.quotes)} 条，库存 "
@@ -555,7 +575,7 @@ async def generate_daily_report(
         payload,
         as_of=facts.as_of,
         source="internal",
-        warnings=facts.warnings,
+        warnings=warnings,
     )
 
 

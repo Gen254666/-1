@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from datetime import date, timedelta
+from decimal import Decimal
 from typing import Any
 from uuid import UUID
 
@@ -36,10 +37,15 @@ def report_quote_highlights(
 ) -> list[QuoteRecord]:
     with_change = [quote for quote in quotes if quote.change is not None]
     if with_change:
-        ranked = sorted(with_change, key=lambda quote: abs(quote.change), reverse=True)
+        ranked = sorted(with_change, key=_abs_change, reverse=True)
     else:
         ranked = sorted(quotes, key=lambda quote: (quote.category, quote.spec, quote.code))
     return ranked[:limit]
+
+
+def _abs_change(quote: QuoteRecord) -> Decimal:
+    change = quote.change
+    return abs(change) if change is not None else Decimal("0")
 
 
 @dataclass

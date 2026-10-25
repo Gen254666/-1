@@ -246,7 +246,10 @@ async def test_generate_daily_report_requires_admin(session: AsyncSession) -> No
     _assert_envelope(allowed, "report")
     assert allowed["artifact"]["payload"]["report_date"] == TODAY.isoformat()
     assert allowed["artifact"]["payload"]["disclaimer"] == "报告免责"
-    assert allowed["artifact"]["payload"]["quotes_total"] == 2
+    payload = allowed["artifact"]["payload"]
+    assert payload["quotes_total"] == 2
+    assert "items" not in payload["inventory"]
+    assert len(payload["sources"]) <= 31
 
 
 def test_require_context_without_context() -> None:

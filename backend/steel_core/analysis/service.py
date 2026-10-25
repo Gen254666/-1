@@ -113,20 +113,25 @@ async def scan_anomalies(
     )
     effective_date = quotes[0].quote_date if quotes else quote_date
 
-    if effective_date is not None:
+    if effective_date is not None and quotes:
+        recent_prices = await _recent_prices_batch(
+            session,
+            user_id=user_id,
+            point_ids=[quote.point_id for quote in quotes],
+            end_date=effective_date,
+            limit=thresholds.consecutive_days + 1,
+        )
         for quote in quotes:
-            prices = await _recent_prices(
-                session,
-                user_id=user_id,
-                point_id=quote.point_id,
-                end_date=effective_date,
-                limit=thresholds.consecutive_days + 1,
-            )
+            prices = recent_prices.get(quote.point_id, [])
             name = f"{quote.category} {quote.spec} {quote.region}"
             anomalies.extend(_price_anomalies(quote.point_id, name, prices, thresholds))
 
     snapshot_date, _, inventory_items = await _all_inventory_items(session, category=category)
     if snapshot_date is not None:
+        specs = {item.spec for item in inventory_items if item.pieces is not None}
+        inventory_history = await _inventory_history_batch(
+            session, specs=specs, snapshot_date=snapshot_date
+        )
         for item in inventory_items:
             if item.pieces is None:
                 continue
@@ -146,11 +151,10 @@ async def scan_anomalies(
                     )
                 )
 
-            deviation = await _inventory_deviation(
-                session,
-                spec=item.spec,
-                snapshot_date=snapshot_date,
-                current_pieces=item.pieces,
+            deviation = _deviation_from_history(
+                item.pieces,
+                inventory_history.get(item.spec, []),
+                snapshot_date,
             )
             if deviation is not None and deviation >= thresholds.inventory_deviation_pct:
                 anomalies.append(
@@ -213,30 +217,54 @@ async def _load_all_quotes(
     return items
 
 
-async def _recent_prices(
+async def _recent_prices_batch(
     session: AsyncSession,
     *,
     user_id: UUID,
-    point_id: UUID,
+    point_ids: list[UUID],
     end_date: date,
     limit: int,
-) -> list[Decimal]:
-    statement = (
-        select(MarketQuote.quote_date, MarketQuote.price)
+) -> dict[UUID, list[Decimal]]:
+    if not point_ids:
+        return {}
+    row_number = (
+        func.row_number()
+        .over(
+            partition_by=MarketQuote.point_id,
+            order_by=MarketQuote.quote_date.desc(),
+        )
+        .label("row_number")
+    )
+    ranked = (
+        select(
+            MarketQuote.point_id.label("point_id"),
+            MarketQuote.quote_date.label("quote_date"),
+            MarketQuote.price.label("price"),
+            row_number,
+        )
         .join(DatasetVersion, MarketQuote.version_id == DatasetVersion.id)
         .join(PricePoint, MarketQuote.point_id == PricePoint.id)
         .where(
             DatasetVersion.status == VersionStatus.ACTIVE,
             visible_clause(user_id),
             version_visibility(user_id),
-            MarketQuote.point_id == point_id,
+            PricePoint.is_active.is_(True),
+            MarketQuote.point_id.in_(point_ids),
             MarketQuote.quote_date <= end_date,
         )
-        .order_by(MarketQuote.quote_date.desc())
-        .limit(limit)
+        .subquery()
     )
-    rows: Any = (await session.execute(statement)).all()
-    return [price for _, price in reversed(rows)]
+    rows: Any = (
+        await session.execute(
+            select(ranked.c.point_id, ranked.c.quote_date, ranked.c.price)
+            .where(ranked.c.row_number <= limit)
+            .order_by(ranked.c.point_id, ranked.c.quote_date)
+        )
+    ).all()
+    prices: dict[UUID, list[Decimal]] = {}
+    for point_id, _, price in rows:
+        prices.setdefault(point_id, []).append(price)
+    return prices
 
 
 def _price_anomalies(
@@ -290,35 +318,50 @@ def _price_anomalies(
     return anomalies
 
 
-async def _inventory_deviation(
+async def _inventory_history_batch(
     session: AsyncSession,
     *,
-    spec: str,
+    specs: set[str],
     snapshot_date: date,
-    current_pieces: int,
-) -> Decimal | None:
+) -> dict[str, list[tuple[date, int | None]]]:
+    if not specs:
+        return {}
     statement = (
         select(
+            InventoryItem.spec,
             InventorySnapshot.snapshot_date,
             func.sum(InventoryItem.pieces),
         )
-        .join(InventoryItem, InventoryItem.snapshot_id == InventorySnapshot.id)
+        .join(InventorySnapshot, InventoryItem.snapshot_id == InventorySnapshot.id)
         .join(DatasetVersion, InventorySnapshot.version_id == DatasetVersion.id)
         .where(
             DatasetVersion.status == VersionStatus.ACTIVE,
             DatasetVersion.dataset_type == DatasetType.INVENTORY,
             InventorySnapshot.snapshot_date >= snapshot_date - timedelta(days=7),
             InventorySnapshot.snapshot_date <= snapshot_date,
-            InventoryItem.spec == spec,
+            InventoryItem.spec.in_(specs),
         )
-        .group_by(InventorySnapshot.snapshot_date)
+        .group_by(InventoryItem.spec, InventorySnapshot.snapshot_date)
     )
     rows: Any = (await session.execute(statement)).all()
 
-    history = [Decimal(total) for day, total in rows if day < snapshot_date and total is not None]
-    if len(history) < 2:
+    history: dict[str, list[tuple[date, int | None]]] = {}
+    for spec, day, total in rows:
+        history.setdefault(spec, []).append((day, total))
+    return history
+
+
+def _deviation_from_history(
+    current_pieces: int,
+    history: list[tuple[date, int | None]],
+    snapshot_date: date,
+) -> Decimal | None:
+    previous_totals = [
+        Decimal(total) for day, total in history if day < snapshot_date and total is not None
+    ]
+    if len(previous_totals) < 2:
         return None
-    average = sum(history, Decimal("0")) / Decimal(len(history))
+    average = sum(previous_totals, Decimal("0")) / Decimal(len(previous_totals))
     if average == 0:
         return None
     return abs(Decimal(current_pieces) - average) / average * Decimal("100")

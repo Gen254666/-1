@@ -1,7 +1,9 @@
-from datetime import date
+from datetime import date, timedelta
 from decimal import Decimal
 from pathlib import Path
+from typing import Any
 
+import pytest
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -10,7 +12,8 @@ from steel_core.db.models.governance import DatasetVersion
 from steel_core.db.models.market import MarketQuote, PricePoint
 from steel_core.ingest.derivation import sync_inventory_derivation
 from steel_core.ingest.inventory import InventoryRow
-from steel_core.ingest.service import import_inventory
+from steel_core.ingest.service import ImportValidationError, import_inventory
+from steel_core.versioning.service import get_active_version
 from tests.integration.test_ingest_service import _make_user
 from tests.unit.test_core.test_inventory_parser import _build_workbook
 
@@ -33,7 +36,7 @@ def _row(block: str, spec: str, price: str | None, pieces: int | None) -> Invent
     )
 
 
-async def _count(session: AsyncSession, model) -> int:
+async def _count(session: AsyncSession, model: Any) -> int:
     return int(await session.scalar(select(func.count()).select_from(model)) or 0)
 
 
@@ -160,3 +163,88 @@ async def test_deactivation_guard_skips_mass_deactivate(session: AsyncSession) -
     assert out.points_deactivated == 0
     assert any("停用" in warning.message for warning in out.warnings)
     assert await _count(session, PricePoint) == 26
+
+
+async def _active_quote_count(session: AsyncSession) -> int:
+    version = await get_active_version(session, DatasetType.MARKET_QUOTE, DATE)
+    if version is None:
+        return 0
+    return int(
+        await session.scalar(
+            select(func.count())
+            .select_from(MarketQuote)
+            .where(MarketQuote.version_id == version.id)
+        )
+        or 0
+    )
+
+
+async def test_truncated_inventory_preserves_quotes_unless_forced(
+    session: AsyncSession,
+) -> None:
+    user = await _make_user(session)
+    full_rows = [
+        _row("方管", f"{100 + index}*100*2.5*6m", str(3500 + index), 100)
+        for index in range(16)
+    ]
+    first = await sync_inventory_derivation(
+        session,
+        user_id=user.id,
+        effective_date=DATE,
+        warehouse="昆明宝象库",
+        rows=full_rows,
+        source_file="full.xlsx",
+    )
+    await session.commit()
+    assert first.quotes_written == 16
+    assert await _active_quote_count(session) == 16
+
+    truncated = await sync_inventory_derivation(
+        session,
+        user_id=user.id,
+        effective_date=DATE,
+        warehouse="昆明宝象库",
+        rows=full_rows[:1],
+        source_file="truncated.xlsx",
+    )
+    await session.commit()
+
+    assert truncated.points_deactivated == 0
+    assert truncated.quotes_written == 0
+    assert truncated.quote_no_changes is True
+    assert any("跳过" in warning.message for warning in truncated.warnings)
+    assert await _active_quote_count(session) == 16
+
+    forced = await sync_inventory_derivation(
+        session,
+        user_id=user.id,
+        effective_date=DATE,
+        warehouse="昆明宝象库",
+        rows=full_rows[:1],
+        source_file="truncated.xlsx",
+        force=True,
+    )
+    await session.commit()
+
+    assert forced.points_deactivated == 15
+    assert forced.quotes_written == 1
+    assert await _active_quote_count(session) == 1
+
+
+async def test_historical_inventory_import_is_rejected(
+    session: AsyncSession, tmp_path: Path
+) -> None:
+    user = await _make_user(session)
+    path = tmp_path / "10.25库存状况表.xlsx"
+    _build_workbook(path, invalid_row=False)
+    await import_inventory(session, user_id=user.id, path=path, explicit_date=DATE)
+
+    with pytest.raises(ImportValidationError) as exc_info:
+        await import_inventory(
+            session,
+            user_id=user.id,
+            path=path,
+            explicit_date=DATE - timedelta(days=1),
+        )
+
+    assert any("早于" in error.message for error in exc_info.value.errors)

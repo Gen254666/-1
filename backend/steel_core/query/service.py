@@ -1,13 +1,13 @@
 from __future__ import annotations
 
 import unicodedata
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import date
 from decimal import Decimal
 from typing import Any
 from uuid import UUID
 
-from sqlalchemy import func, or_, select
+from sqlalchemy import and_, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.sql.elements import ColumnElement
 
@@ -122,7 +122,7 @@ async def find_inventory_item(
             session, category=category, page=page, page_size=MAX_PAGE_SIZE
         )
         for item in result.items:
-            if normalize_spec(item.spec) != target or item.unit_price is None:
+            if normalize_spec(item.spec) != target:
                 continue
             if category is not None and not _block_matches_category(item.block, category):
                 continue
@@ -132,7 +132,8 @@ async def find_inventory_item(
         page += 1
     if not matches:
         return None
-    return max(matches, key=lambda item: (-1 if item.pieces is None else item.pieces))
+    canonical = max(matches, key=lambda item: (-1 if item.pieces is None else item.pieces))
+    return canonical if canonical.unit_price is not None else None
 
 
 def _block_matches_category(block: str, category: str) -> bool:
@@ -270,7 +271,68 @@ async def get_quotes(
         )
         for quote, point in rows
     ]
+    items = await _apply_previous_changes(
+        session, user_id=user_id, items=items, quote_date=quote_date
+    )
     return QuotePage(items=items, total=total, page=page, page_size=page_size)
+
+
+async def _apply_previous_changes(
+    session: AsyncSession,
+    *,
+    user_id: UUID,
+    items: list[QuoteRecord],
+    quote_date: date,
+) -> list[QuoteRecord]:
+    targets = [item for item in items if item.change is None]
+    if not targets:
+        return items
+    point_ids = list({item.point_id for item in targets})
+    previous_dates = (
+        select(
+            MarketQuote.point_id,
+            func.max(MarketQuote.quote_date).label("previous_date"),
+        )
+        .join(DatasetVersion, MarketQuote.version_id == DatasetVersion.id)
+        .join(PricePoint, MarketQuote.point_id == PricePoint.id)
+        .where(
+            DatasetVersion.status == VersionStatus.ACTIVE,
+            visible_clause(user_id),
+            version_visibility(user_id),
+            PricePoint.is_active.is_(True),
+            MarketQuote.point_id.in_(point_ids),
+            MarketQuote.quote_date < quote_date,
+        )
+        .group_by(MarketQuote.point_id)
+        .subquery()
+    )
+    rows = await session.execute(
+        select(MarketQuote.point_id, MarketQuote.price)
+        .join(
+            previous_dates,
+            and_(
+                MarketQuote.point_id == previous_dates.c.point_id,
+                MarketQuote.quote_date == previous_dates.c.previous_date,
+            ),
+        )
+        .join(DatasetVersion, MarketQuote.version_id == DatasetVersion.id)
+        .where(
+            DatasetVersion.status == VersionStatus.ACTIVE,
+            version_visibility(user_id),
+        )
+    )
+    previous_prices = {point_id: price for point_id, price in rows}
+    computed = {
+        item.point_id: item.price - previous_prices[item.point_id]
+        for item in targets
+        if item.point_id in previous_prices
+    }
+    return [
+        replace(item, change=computed[item.point_id])
+        if item.change is None and item.point_id in computed
+        else item
+        for item in items
+    ]
 
 
 async def get_price_history(
@@ -379,7 +441,10 @@ async def get_inventory(
 
     conditions: list[Any] = [InventoryItem.snapshot_id == snapshot.id]
     if category is not None:
-        conditions.append(InventoryItem.block == category)
+        if category == "矩管":
+            conditions.append(InventoryItem.block.in_(("矩管", "矩形管")))
+        else:
+            conditions.append(InventoryItem.block == category)
 
     total = int(
         await session.scalar(select(func.count()).select_from(InventoryItem).where(*conditions))

@@ -7,10 +7,11 @@ from pathlib import Path
 from typing import Any
 from uuid import UUID
 
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from steel_core.db.enums import DatasetType, ImportStatus
-from steel_core.db.models.governance import AuditLog, ImportBatch
+from steel_core.db.enums import DatasetType, ImportStatus, VersionStatus
+from steel_core.db.models.governance import AuditLog, DatasetVersion, ImportBatch
 from steel_core.db.models.inventory import InventoryItem, InventorySnapshot
 from steel_core.db.models.market import MarketQuote
 from steel_core.ingest.common import ParseIssue
@@ -284,6 +285,35 @@ async def import_inventory(
 
     assert parsed.effective_date is not None
     warehouse_name = warehouse or parsed.warehouse
+    latest_inventory_date = await session.scalar(
+        select(func.max(InventorySnapshot.snapshot_date))
+        .join(DatasetVersion, InventorySnapshot.version_id == DatasetVersion.id)
+        .where(
+            DatasetVersion.status == VersionStatus.ACTIVE,
+            DatasetVersion.dataset_type == DatasetType.INVENTORY,
+        )
+    )
+    if latest_inventory_date is not None and parsed.effective_date < latest_inventory_date:
+        errors = [
+            ParseIssue(
+                None,
+                "生效日期",
+                f"库存日期 {parsed.effective_date.isoformat()} 早于最新库存日期 "
+                f"{latest_inventory_date.isoformat()}，请按日期顺序导入",
+            )
+        ]
+        batch = await _record_failed_batch(
+            session,
+            user_id=user_id,
+            dataset_type=DatasetType.INVENTORY,
+            effective_date=parsed.effective_date,
+            path=path,
+            rows_total=len(parsed.rows),
+            rows_ok=0,
+            errors=errors,
+        )
+        raise ImportValidationError(batch.id, errors)
+
     canonical = canonical_rows(parsed.rows)
     region = region_for_warehouse(warehouse_name)
     try:

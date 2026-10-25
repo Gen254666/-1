@@ -41,6 +41,10 @@ function ImportsTab() {
       } else {
         message.success(`导入成功：${outcome.rows_ok} 行；${derived}`);
       }
+      const warnings: string[] = outcome.warnings ?? [];
+      if (warnings.length) {
+        message.warning(warnings.join("；"));
+      }
       load();
     } catch (error) {
       message.error((error as Error).message);
@@ -51,8 +55,14 @@ function ImportsTab() {
 
   const rollback = async (id: string) => {
     try {
-      await apiPost(`/api/admin/imports/${id}/rollback`);
+      const result = await apiPost<{ derived?: { warnings?: string[] } }>(
+        `/api/admin/imports/${id}/rollback`,
+      );
       message.success("已回滚");
+      const warnings = result.derived?.warnings ?? [];
+      if (warnings.length) {
+        message.warning(warnings.join("；"));
+      }
       load();
     } catch (error) {
       message.error((error as Error).message);
@@ -103,7 +113,9 @@ function ImportsTab() {
               render: (_: unknown, row: ImportBatch) => (
                 <Button
                   size="small"
-                  disabled={row.status !== "success"}
+                  disabled={
+                    row.status !== "success" || row.file_name.startsWith("自动生成-")
+                  }
                   onClick={() => void rollback(row.id)}
                 >
                   回滚

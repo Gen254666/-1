@@ -4,7 +4,7 @@ from dataclasses import dataclass, field
 from datetime import date
 from uuid import UUID
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from steel_core.audit.service import write_audit
@@ -30,8 +30,8 @@ from steel_core.versioning.service import (
 )
 
 DRIVEN_SOURCES = {"inventory", "mysteel"}
-DEACTIVATION_GUARD_RATIO = 0.5
-DEACTIVATION_GUARD_MIN = 20
+SHRINK_GUARD_RATIO = 0.5
+SHRINK_GUARD_MIN = 10
 
 
 @dataclass
@@ -110,33 +110,6 @@ async def sync_inventory_derivation(
 
     await session.flush()
 
-    if deactivate_missing:
-        driven = [
-            point
-            for point in existing_points
-            if point.is_active and point.source in DRIVEN_SOURCES
-        ]
-        to_deactivate = [point for point in driven if point.code not in derived_codes]
-        if to_deactivate:
-            skipped = (
-                not force
-                and len(driven) >= DEACTIVATION_GUARD_MIN
-                and len(to_deactivate) > len(driven) * DEACTIVATION_GUARD_RATIO
-            )
-            if skipped:
-                outcome.warnings.append(
-                    ParseIssue(
-                        None,
-                        "点位",
-                        f"待停用点位 {len(to_deactivate)} 个，超过当前 {len(driven)} 个的 50%，"
-                        "已跳过停用；确认库存完整后可强制同步",
-                    )
-                )
-            else:
-                for point in to_deactivate:
-                    point.is_active = False
-                outcome.points_deactivated = len(to_deactivate)
-
     _append_conflict_warnings(rows, outcome)
     priced = [
         (code, row)
@@ -148,6 +121,56 @@ async def sync_inventory_derivation(
             outcome.warnings.append(
                 ParseIssue(None, "单价", f"规格 {row.spec} 缺少单价，未生成行情")
             )
+
+    driven = (
+        [
+            point
+            for point in existing_points
+            if point.is_active and point.source in DRIVEN_SOURCES
+        ]
+        if deactivate_missing
+        else []
+    )
+    to_deactivate = [point for point in driven if point.code not in derived_codes]
+    existing_quote_count = await _active_quote_count(session, effective_date)
+    point_shrink = (
+        deactivate_missing
+        and len(driven) >= SHRINK_GUARD_MIN
+        and len(derived_codes) < len(driven) * SHRINK_GUARD_RATIO
+    )
+    quote_shrink = (
+        deactivate_missing
+        and existing_quote_count >= SHRINK_GUARD_MIN
+        and len(priced) < existing_quote_count * SHRINK_GUARD_RATIO
+    )
+    if not force and (point_shrink or quote_shrink):
+        outcome.warnings.append(
+            ParseIssue(
+                None,
+                "点位",
+                f"库存规模大幅缩减（点位 {len(driven)}→{len(derived_codes)}，"
+                f"行情 {existing_quote_count}→{len(priced)}），已跳过停用与行情覆盖；"
+                "确认无误后可强制同步",
+            )
+        )
+        active = await get_active_version(session, DatasetType.MARKET_QUOTE, effective_date)
+        outcome.quote_no_changes = True
+        outcome.quote_version_id = active.id if active is not None else None
+        await _write_audit(
+            session,
+            user_id=user_id,
+            outcome=outcome,
+            effective_date=effective_date,
+            warehouse=warehouse,
+            resource_id=str(outcome.quote_version_id) if outcome.quote_version_id else None,
+            guard_tripped=True,
+        )
+        return outcome
+
+    if to_deactivate:
+        for point in to_deactivate:
+            point.is_active = False
+        outcome.points_deactivated = len(to_deactivate)
 
     quote_payload = [
         {
@@ -200,12 +223,47 @@ async def sync_inventory_derivation(
         outcome.quotes_written = len(priced)
         outcome.quote_version_id = version.id
 
+    await _write_audit(
+        session,
+        user_id=user_id,
+        outcome=outcome,
+        effective_date=effective_date,
+        warehouse=warehouse,
+        resource_id=str(outcome.quote_version_id) if outcome.quote_version_id else str(batch.id),
+    )
+    return outcome
+
+
+async def _active_quote_count(session: AsyncSession, effective_date: date) -> int:
+    version = await get_active_version(session, DatasetType.MARKET_QUOTE, effective_date)
+    if version is None:
+        return 0
+    return int(
+        await session.scalar(
+            select(func.count())
+            .select_from(MarketQuote)
+            .where(MarketQuote.version_id == version.id)
+        )
+        or 0
+    )
+
+
+async def _write_audit(
+    session: AsyncSession,
+    *,
+    user_id: UUID,
+    outcome: DerivationOutcome,
+    effective_date: date,
+    warehouse: str,
+    resource_id: str | None,
+    guard_tripped: bool = False,
+) -> None:
     await write_audit(
         session,
         user_id=user_id,
         action="derive.inventory",
         resource_type="dataset_version",
-        resource_id=str(outcome.quote_version_id) if outcome.quote_version_id else str(batch.id),
+        resource_id=resource_id,
         detail={
             "effective_date": effective_date.isoformat(),
             "warehouse": warehouse,
@@ -214,9 +272,9 @@ async def sync_inventory_derivation(
             "points_deactivated": outcome.points_deactivated,
             "quotes_written": outcome.quotes_written,
             "quote_no_changes": outcome.quote_no_changes,
+            "guard_tripped": guard_tripped,
         },
     )
-    return outcome
 
 
 async def derive_from_active_snapshot(
@@ -278,7 +336,16 @@ async def derive_from_active_snapshot(
         )
         for item in items
     ]
-    return await sync_inventory_derivation(
+    latest_inventory_date = await session.scalar(
+        select(func.max(InventorySnapshot.snapshot_date))
+        .join(DatasetVersion, InventorySnapshot.version_id == DatasetVersion.id)
+        .where(
+            DatasetVersion.status == VersionStatus.ACTIVE,
+            DatasetVersion.dataset_type == DatasetType.INVENTORY,
+        )
+    )
+    historical = latest_inventory_date is not None and effective_date < latest_inventory_date
+    outcome = await sync_inventory_derivation(
         session,
         user_id=user_id,
         effective_date=effective_date,
@@ -286,7 +353,13 @@ async def derive_from_active_snapshot(
         rows=rows,
         source_file=snapshot.source_file,
         force=force,
+        deactivate_missing=not historical,
     )
+    if historical:
+        outcome.warnings.append(
+            ParseIssue(None, "点位", "历史日期重推导不调整当前点位目录")
+        )
+    return outcome
 
 
 def _append_conflict_warnings(

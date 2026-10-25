@@ -354,6 +354,99 @@ async def test_find_inventory_item_prefers_max_pieces(session: AsyncSession) -> 
     assert item.unit_price == Decimal("3320")
 
 
+async def test_get_quotes_computes_change_from_previous_quote(
+    session: AsyncSession,
+) -> None:
+    owner = await _make_user(session)
+    point = await _make_point(session, "PUBLIC")
+    previous = await _make_version(session, owner, effective_date=QUOTE_DATE - timedelta(days=1))
+    current = await _make_version(session, owner, effective_date=QUOTE_DATE)
+    await _add_quote(
+        session,
+        previous,
+        point,
+        "3500",
+        quote_date=QUOTE_DATE - timedelta(days=1),
+    )
+    await _add_quote(session, current, point, "3550")
+
+    page = await get_quotes(session, user_id=owner.id, quote_date=QUOTE_DATE)
+
+    assert page.total == 1
+    assert page.items[0].change == Decimal("50")
+
+
+async def test_get_inventory_category_accepts_ju_alias(session: AsyncSession) -> None:
+    owner = await _make_user(session)
+    version = await _make_version(session, owner, dataset_type=DatasetType.INVENTORY)
+    snapshot = InventorySnapshot(
+        version_id=version.id,
+        snapshot_date=QUOTE_DATE,
+        warehouse="昆明宝象库",
+        source_file="10.25.xlsx",
+    )
+    session.add(snapshot)
+    await session.flush()
+    session.add(
+        InventoryItem(
+            snapshot_id=snapshot.id,
+            block="矩形管",
+            spec="100*150*2.5*6m",
+            unit_price=Decimal("3320"),
+            pieces=128,
+            row_no=4,
+        )
+    )
+    await session.flush()
+
+    page = await get_inventory(session, category="矩管")
+    found = await find_inventory_item(
+        session, spec="100×150×2.5×6m", category="矩管"
+    )
+
+    assert page.total == 1
+    assert found is not None
+    assert found.spec == "100*150*2.5*6m"
+
+
+async def test_find_inventory_item_uses_canonical_row_even_if_unpriced(
+    session: AsyncSession,
+) -> None:
+    owner = await _make_user(session)
+    version = await _make_version(session, owner, dataset_type=DatasetType.INVENTORY)
+    snapshot = InventorySnapshot(
+        version_id=version.id,
+        snapshot_date=QUOTE_DATE,
+        warehouse="昆明宝象库",
+        source_file="10.25.xlsx",
+    )
+    session.add(snapshot)
+    await session.flush()
+    session.add_all(
+        [
+            InventoryItem(
+                snapshot_id=snapshot.id,
+                block="方管",
+                spec="120*120*3.75*6m",
+                unit_price=None,
+                pieces=268,
+                row_no=27,
+            ),
+            InventoryItem(
+                snapshot_id=snapshot.id,
+                block="方管",
+                spec="120*120*3.75*6m",
+                unit_price=Decimal("3300"),
+                pieces=2,
+                row_no=26,
+            ),
+        ]
+    )
+    await session.flush()
+
+    assert await find_inventory_item(session, spec="120×120×3.75×6m") is None
+
+
 async def test_get_inventory_without_snapshot(session: AsyncSession) -> None:
     page = await get_inventory(session)
 

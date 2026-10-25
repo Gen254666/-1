@@ -29,9 +29,16 @@ async def generate_and_save_report(
     facts = await build_daily_report_facts(session, user_id=user_id, report_date=report_date)
     effective_date = facts.as_of or date.today()
     highlights = report_quote_highlights(facts.quotes)
+    changes_unavailable = bool(facts.quotes) and all(
+        quote.change is None for quote in facts.quotes
+    )
+    warnings = list(facts.warnings)
+    if changes_unavailable:
+        warnings.append("首日无涨跌数据，报价明细按品类/规格排列")
     facts_payload = {
         "report_date": effective_date.isoformat(),
         "quotes_total": len(facts.quotes),
+        "changes_unavailable": changes_unavailable,
         "quotes": [
             {
                 "code": quote.code,
@@ -56,7 +63,7 @@ async def generate_and_save_report(
             for series in facts.spreads
         ],
         "anomalies": [anomaly.message for anomaly in facts.anomalies],
-        "warnings": facts.warnings,
+        "warnings": warnings,
     }
     model = "llm"
     try:
@@ -104,6 +111,8 @@ def _facts_markdown(facts_payload: dict[str, Any], disclaimer: str) -> str:
     quotes = facts_payload.get("quotes") or []
     quotes_total = facts_payload.get("quotes_total", len(quotes))
     lines.append(f"- 报价总数 {quotes_total}，展示 {len(quotes)} 条")
+    if facts_payload.get("changes_unavailable"):
+        lines.append("- 首日无涨跌数据，以下按品类/规格顺序展示")
     if quotes:
         for quote in quotes:
             change = quote.get("change")
