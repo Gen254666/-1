@@ -75,6 +75,21 @@ async def test_router_falls_back_and_breaker_opens() -> None:
     assert failing.calls == 2
 
 
+async def test_router_caps_total_attempts() -> None:
+    providers = [FakeProvider(name=f"p{index}", fail=True) for index in range(5)]
+    router = LLMRouter(
+        providers,
+        CircuitBreaker(threshold=10, reset_seconds=60, name="test"),
+        max_attempts_per_provider=2,
+        max_total_attempts=3,
+    )
+
+    with pytest.raises(AllProvidersFailed):
+        await router.complete([{"role": "user", "content": "q"}])
+
+    assert sum(provider.calls for provider in providers) == 3
+
+
 async def test_router_raises_when_all_fail() -> None:
     router = LLMRouter(
         [FakeProvider(name="a", fail=True), FakeProvider(name="b", fail=True)],

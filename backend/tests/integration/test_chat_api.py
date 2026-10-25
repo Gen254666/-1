@@ -7,6 +7,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.chat.dependencies import get_llm_router, get_mcp_client_factory
+from app.core.config import get_settings
 from steel_core.db.enums import Role
 from steel_core.db.models.accounts import User
 from steel_core.db.models.governance import AuditLog
@@ -115,6 +116,25 @@ async def test_chat_requires_auth(app_client: httpx.AsyncClient) -> None:
     response = await app_client.post("/api/chat/stream", json={"message": "你好"})
 
     assert response.status_code == 401
+
+
+async def test_chat_quota_exceeded(
+    session: AsyncSession,
+    app_client: httpx.AsyncClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    await _create_user(session)
+    headers = await _login(app_client)
+    monkeypatch.setattr(get_settings(), "llm_daily_request_limit", 0)
+
+    response = await app_client.post(
+        "/api/chat/stream",
+        headers=headers,
+        json={"message": "今天方管多少钱"},
+    )
+
+    assert response.status_code == 429
+    assert response.json()["code"] == "LLM_QUOTA_EXCEEDED"
 
 
 async def test_chat_blocks_prompt_injection(

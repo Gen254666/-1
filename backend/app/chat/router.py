@@ -24,6 +24,7 @@ from app.core.http import client_ip
 from app.core.rate_limit import RateLimiter
 from app.core.redis import get_redis_client
 from app.llm.providers import AllProvidersFailed
+from app.llm.quota import consume_llm_quota
 from steel_core.audit.service import write_audit
 from steel_core.db.enums import MessageRole
 from steel_core.db.models.accounts import ChatMessage, ChatSession, User
@@ -186,6 +187,11 @@ async def stream_endpoint(
             "PROMPT_INJECTION_BLOCKED",
             "输入包含不允许的指令，请只提问钢材行情相关问题",
         )
+
+    if not await consume_llm_quota(
+        redis, user_id=user.id, limit=settings.llm_daily_request_limit
+    ):
+        raise ApiError(429, "LLM_QUOTA_EXCEEDED", "今日对话额度已用完，请明天再试")
 
     if payload.session_id is not None:
         chat_session = await _owned_session(session, session_id=payload.session_id, user=user)

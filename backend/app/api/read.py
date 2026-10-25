@@ -12,9 +12,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth.dependencies import get_current_user, require_admin
 from app.chat.dependencies import get_llm_router
+from app.core.config import get_settings
 from app.core.db import get_db_session
 from app.core.errors import ApiError
 from app.core.rate_limit import data_rate_limit
+from app.core.redis import get_redis_client
+from app.llm.quota import consume_llm_quota
 from app.report.service import generate_and_save_report
 from steel_core.analysis.service import Anomaly, scan_anomalies
 from steel_core.db.models.accounts import User
@@ -339,7 +342,13 @@ async def generate_report_endpoint(
     admin: User = Depends(require_admin),
     session: AsyncSession = Depends(get_db_session),
     llm: Any = Depends(get_llm_router),
+    redis: Any | None = Depends(get_redis_client),
 ) -> dict[str, Any]:
+    settings = get_settings()
+    if not await consume_llm_quota(
+        redis, user_id=admin.id, limit=settings.llm_daily_request_limit
+    ):
+        raise ApiError(429, "LLM_QUOTA_EXCEEDED", "今日日报额度已用完，请明天再试")
     report = await generate_and_save_report(
         session, llm=llm, user_id=admin.id, report_date=report_date
     )

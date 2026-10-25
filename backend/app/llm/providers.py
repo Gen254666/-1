@@ -113,22 +113,38 @@ class HttpLLMProvider:
 
 
 class LLMRouter:
-    def __init__(self, providers: Sequence[LLMProvider], breaker: CircuitBreaker) -> None:
+    def __init__(
+        self,
+        providers: Sequence[LLMProvider],
+        breaker: CircuitBreaker,
+        *,
+        max_attempts_per_provider: int = 1,
+        max_total_attempts: int = 3,
+    ) -> None:
         self._providers = providers
         self._breaker = breaker
+        self._max_attempts_per_provider = max(1, max_attempts_per_provider)
+        self._max_total_attempts = max(1, max_total_attempts)
 
     async def complete(self, messages: list[dict[str, str]]) -> str:
         errors: list[str] = []
+        attempts = 0
         for provider in self._providers:
             if self._breaker.is_open(provider.name):
                 continue
-            try:
-                text = await provider.complete(messages)
-            except Exception as exc:  # noqa: BLE001
-                errors.append(f"{provider.name}: {exc}")
-                self._breaker.record_failure(provider.name)
-                continue
-            self._breaker.record_success(provider.name)
-            return text
+            for _ in range(self._max_attempts_per_provider):
+                if attempts >= self._max_total_attempts:
+                    break
+                attempts += 1
+                try:
+                    text = await provider.complete(messages)
+                except Exception as exc:  # noqa: BLE001
+                    errors.append(f"{provider.name}: {exc}")
+                    self._breaker.record_failure(provider.name)
+                    continue
+                self._breaker.record_success(provider.name)
+                return text
+            if attempts >= self._max_total_attempts:
+                break
         msg = "全部 LLM 厂商不可用: " + "; ".join(errors)
         raise AllProvidersFailed(msg)

@@ -48,7 +48,12 @@ def get_llm_router() -> LLMRouter:
                     timeout=settings.llm_timeout_seconds,
                 )
             )
-    return LLMRouter(providers, CircuitBreaker(threshold=5, reset_seconds=30, name="llm"))
+    return LLMRouter(
+        providers,
+        CircuitBreaker(threshold=5, reset_seconds=30, name="llm"),
+        max_attempts_per_provider=settings.llm_max_attempts_per_provider,
+        max_total_attempts=settings.llm_max_total_attempts,
+    )
 
 
 def get_mcp_client_factory() -> Any:
