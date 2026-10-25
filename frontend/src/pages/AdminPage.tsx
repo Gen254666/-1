@@ -18,6 +18,7 @@ import { useEffect, useState } from "react";
 import { apiDelete, apiGet, apiPost, apiPut, uploadFile } from "../api/client";
 import type { AnomalyConfig, ImportBatch, User } from "../api/types";
 import { useAuth } from "../auth/AuthContext";
+import { isAutoQuoteBatch, joinWarnings } from "../utils/adminImport";
 
 function ImportsTab() {
   const [imports, setImports] = useState<ImportBatch[]>([]);
@@ -41,9 +42,9 @@ function ImportsTab() {
       } else {
         message.success(`导入成功：${outcome.rows_ok} 行；${derived}`);
       }
-      const warnings: string[] = outcome.warnings ?? [];
-      if (warnings.length) {
-        message.warning(warnings.join("；"));
+      const warningText = joinWarnings(outcome.warnings);
+      if (warningText) {
+        message.warning(warningText);
       }
       load();
     } catch (error) {
@@ -59,9 +60,9 @@ function ImportsTab() {
         `/api/admin/imports/${id}/rollback`,
       );
       message.success("已回滚");
-      const warnings = result.derived?.warnings ?? [];
-      if (warnings.length) {
-        message.warning(warnings.join("；"));
+      const warningText = joinWarnings(result.derived?.warnings);
+      if (warningText) {
+        message.warning(warningText);
       }
       load();
     } catch (error) {
@@ -113,9 +114,7 @@ function ImportsTab() {
               render: (_: unknown, row: ImportBatch) => (
                 <Button
                   size="small"
-                  disabled={
-                    row.status !== "success" || row.file_name.startsWith("自动生成-")
-                  }
+                  disabled={row.status !== "success" || isAutoQuoteBatch(row.file_name)}
                   onClick={() => void rollback(row.id)}
                 >
                   回滚
