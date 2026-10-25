@@ -105,6 +105,10 @@ check("proxy_buffering off;" in nginx, "nginx SSE buffering must be off")
 check("Content-Security-Policy" in nginx, "nginx must set Content-Security-Policy")
 check("script-src 'self'" in nginx, "nginx CSP must restrict scripts to self")
 check("X-Content-Type-Options" in nginx, "nginx must set X-Content-Type-Options")
+check(
+    "proxy_set_header X-Real-IP $http_x_real_ip;" in nginx,
+    "nginx must preserve the trusted X-Real-IP",
+)
 
 prod: dict[str, Any] = load_compose("docker-compose.prod.yml")
 prod_services: dict[str, Any] = prod.get("services", {})
@@ -126,6 +130,15 @@ check("Strict-Transport-Security" in caddy, "Caddy must set HSTS")
 check("Content-Security-Policy" in caddy, "Caddy must set CSP")
 check("script-src 'self'" in caddy, "Caddy CSP must restrict scripts to self")
 check("X-Frame-Options" in caddy, "Caddy must set X-Frame-Options")
+check(
+    "header_up X-Forwarded-For {remote_host}" in caddy,
+    "Caddy must overwrite X-Forwarded-For",
+)
+check(
+    "header_up X-Real-IP {remote_host}" in caddy,
+    "Caddy must overwrite X-Real-IP",
+)
+check("respond @metrics 404" in caddy, "Caddy must block /metrics")
 check((ROOT / "scripts/generate_secrets.py").exists(), "generate_secrets.py missing")
 
 init_db = read("deploy/init_db.sh")
@@ -133,8 +146,9 @@ check("CREATE ROLE steel_mcp" in init_db, "init_db.sh must create steel_mcp")
 check("ALTER DEFAULT PRIVILEGES" in init_db, "init_db.sh must grant default SELECT")
 
 dockerignore = read(".dockerignore")
-for pattern in (".env", ".venv", "node_modules", ".superpowers"):
+for pattern in (".env", ".env.*", ".venv", "node_modules", ".superpowers", "backups"):
     check(pattern in dockerignore, f".dockerignore missing {pattern}")
+check("backups/" in read(".gitignore"), ".gitignore must ignore backup directory")
 
 for script in ("deploy/init_db.sh", "scripts/backup.sh"):
     data = (ROOT / script).read_bytes()

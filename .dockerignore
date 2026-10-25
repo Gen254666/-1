@@ -10,5 +10,10 @@ data/exports
 .superpowers
 *.xlsx
 .env
+.env.*
+backups
+*.dump
+*.dump.enc
+*.tar.gz.enc
 __pycache__
 *.pyc

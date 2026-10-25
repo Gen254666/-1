@@ -77,14 +77,21 @@ class Settings(BaseSettings):
                 ):
                     msg = f"{name} must be a non-placeholder value of at least 32 characters in production"
                     raise ValueError(msg)
-            if not self.prod_allow_local_origins:
-                for origin in self.cors_origins:
-                    if "localhost" in origin or "127.0.0.1" in origin:
-                        msg = (
-                            "CORS_ORIGINS must not contain localhost in production; "
-                            "set PROD_ALLOW_LOCAL_ORIGINS=1 only for a local smoke test"
-                        )
-                        raise ValueError(msg)
+            for origin in self.cors_origins:
+                local = origin.startswith("http://localhost") or origin.startswith(
+                    "http://127.0.0.1"
+                )
+                if local and self.prod_allow_local_origins:
+                    continue
+                if origin in {"*", "null"} or not origin.startswith("https://"):
+                    msg = (
+                        "CORS_ORIGINS must contain https origins only in production; "
+                        "set PROD_ALLOW_LOCAL_ORIGINS=1 only for a local smoke test"
+                    )
+                    raise ValueError(msg)
+        if self.access_token_minutes > self.session_idle_minutes:
+            msg = "ACCESS_TOKEN_MINUTES must not exceed SESSION_IDLE_MINUTES"
+            raise ValueError(msg)
         return self
 
 

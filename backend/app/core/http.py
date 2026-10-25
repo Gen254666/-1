@@ -4,6 +4,9 @@ from fastapi import Request
 
 
 def client_ip(request: Request) -> str | None:
+    real_ip = request.headers.get("x-real-ip")
+    if real_ip:
+        return real_ip.strip()[:64] or None
     forwarded = request.headers.get("x-forwarded-for")
     if forwarded:
         return forwarded.split(",")[0].strip()[:64] or None

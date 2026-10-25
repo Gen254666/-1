@@ -30,7 +30,7 @@ export PATH="$TMP/bin:$PATH"
 export DATABASE_URL_AGENT="postgresql://steel_agent:test@localhost:5432/steel_market"
 export BACKUP_DIR="$TMP/backups"
 export CHROMA_PATH="$TMP/no-chroma"
-export BACKUP_PASSPHRASE="test-passphrase"
+export BACKUP_PASSPHRASE="test-passphrase-0123456789abcdef-strong"
 unset BACKUP_ALLOW_PLAINTEXT || true
 
 bash "$ROOT/scripts/backup.sh"
@@ -57,5 +57,17 @@ env -u BACKUP_PASSPHRASE -u BACKUP_ALLOW_PLAINTEXT bash "$ROOT/scripts/backup.sh
 rc=$?
 set -e
 [[ "$rc" -ne 0 ]] || { echo "backup without passphrase must fail"; exit 1; }
+
+set +e
+BACKUP_PASSPHRASE=short bash "$ROOT/scripts/backup.sh" >/dev/null 2>&1
+rc=$?
+set -e
+[[ "$rc" -ne 0 ]] || { echo "weak passphrase must fail"; exit 1; }
+
+set +e
+BACKUP_PASSPHRASE=CHANGE_ME_please_replace_this_value_123456 bash "$ROOT/scripts/backup.sh" >/dev/null 2>&1
+rc=$?
+set -e
+[[ "$rc" -ne 0 ]] || { echo "placeholder passphrase must fail"; exit 1; }
 
 echo "backup verification passed"

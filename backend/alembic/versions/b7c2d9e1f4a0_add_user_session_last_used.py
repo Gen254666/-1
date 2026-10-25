@@ -21,10 +21,13 @@ depends_on: str | Sequence[str] | None = None
 def upgrade() -> None:
     op.add_column(
         "user_session",
-        sa.Column("last_used_at", sa.DateTime(timezone=True), nullable=True),
+        sa.Column(
+            "last_used_at",
+            sa.DateTime(timezone=True),
+            server_default=sa.text("now()"),
+            nullable=False,
+        ),
     )
-    op.execute("UPDATE user_session SET last_used_at = created_at")
-    op.alter_column("user_session", "last_used_at", nullable=False)
 
 
 def downgrade() -> None:

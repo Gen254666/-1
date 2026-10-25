@@ -10,6 +10,7 @@ from fastapi import Depends, Request
 from app.auth.dependencies import get_current_user
 from app.core.config import get_settings
 from app.core.errors import ApiError
+from app.core.http import client_ip
 from app.core.redis import get_redis_client
 from steel_core.db.models.accounts import User
 
@@ -78,7 +79,7 @@ async def login_rate_limit(
     redis: Any | None = Depends(get_redis_client),
 ) -> None:
     settings = get_settings()
-    identifier = request.client.host if request.client else "unknown"
+    identifier = client_ip(request) or "unknown"
     limiter = RateLimiter(redis)
     allowed = await limiter.allow(
         scope="login",

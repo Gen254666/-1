@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import os
 import secrets
 import stat
 import sys
@@ -40,7 +41,9 @@ def main() -> int:
     if path.exists() and not args.force:
         print(f"拒绝覆盖已存在文件: {path}（使用 --force 覆盖）", file=sys.stderr)
         return 1
-    path.write_text(render(values), encoding="utf-8")
+    fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+    with os.fdopen(fd, "w", encoding="utf-8") as handle:
+        handle.write(render(values))
     path.chmod(stat.S_IRUSR | stat.S_IWUSR)
     print(f"已写入 {path}（权限 600）")
     return 0

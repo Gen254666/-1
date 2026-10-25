@@ -3,7 +3,6 @@ import {
   useCallback,
   useContext,
   useEffect,
-  useRef,
   useState,
   type ReactNode,
 } from "react";
@@ -16,7 +15,12 @@ import {
   setAccessToken,
 } from "../api/client";
 import type { User } from "../api/types";
-import { idleTimeoutMinutes, shouldIdleLogout } from "../utils/idleTimeout";
+import {
+  idleTimeoutMinutes,
+  readLastActivity,
+  shouldIdleLogout,
+  touchActivity,
+} from "../utils/idleTimeout";
 
 interface AuthState {
   user: User | null;
@@ -53,14 +57,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
-  const lastActivityRef = useRef(Date.now());
-
   useEffect(() => {
     if (!user) return;
-    lastActivityRef.current = Date.now();
-    const activityEvents = ["mousemove", "keydown", "click", "touchstart"];
+    touchActivity(window.localStorage);
+    const activityEvents = [
+      "mousemove",
+      "keydown",
+      "click",
+      "touchstart",
+      "wheel",
+      "scroll",
+    ];
     const resetActivity = () => {
-      lastActivityRef.current = Date.now();
+      touchActivity(window.localStorage);
     };
     activityEvents.forEach((event) =>
       window.addEventListener(event, resetActivity, { passive: true }),
@@ -68,7 +77,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const timer = window.setInterval(() => {
       if (
         shouldIdleLogout(
-          lastActivityRef.current,
+          readLastActivity(window.localStorage),
           Date.now(),
           idleTimeoutMinutes(),
         )

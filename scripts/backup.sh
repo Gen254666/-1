@@ -18,6 +18,13 @@ if [[ -z "${BACKUP_PASSPHRASE}" && "${BACKUP_ALLOW_PLAINTEXT}" != "1" ]]; then
   exit 1
 fi
 
+if [[ -n "${BACKUP_PASSPHRASE}" ]]; then
+  if (( ${#BACKUP_PASSPHRASE} < 32 )) || [[ "${BACKUP_PASSPHRASE}" == CHANGE_ME* ]]; then
+    echo "BACKUP_PASSPHRASE must be at least 32 characters and not a placeholder" >&2
+    exit 1
+  fi
+fi
+
 if [[ -n "${BACKUP_PASSPHRASE}" ]] && ! command -v openssl >/dev/null 2>&1; then
   echo "openssl is required for encrypted backups" >&2
   exit 1

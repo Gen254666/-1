@@ -51,6 +51,7 @@ def create_app() -> FastAPI:
             exc_info=exc,
             extra={"request_id": request_id, "path": request.url.path},
         )
+        headers = {"X-Request-ID": request_id} if request_id else None
         return JSONResponse(
             status_code=500,
             content={
@@ -58,6 +59,7 @@ def create_app() -> FastAPI:
                 "message": "服务器内部错误",
                 "details": {"request_id": request_id},
             },
+            headers=headers,
         )
 
     app.include_router(auth_router)

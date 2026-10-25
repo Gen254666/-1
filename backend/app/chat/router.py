@@ -16,7 +16,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.auth.dependencies import get_current_user
 from app.chat.dependencies import get_llm_router, get_mcp_client_factory
 from app.chat.orchestrator import run_chat
-from app.chat.safety import check_prompt_injection
+from app.chat.safety import check_history_injection, check_prompt_injection
 from app.core.config import get_settings
 from app.core.db import get_db_session, get_db_session_factory
 from app.core.errors import ApiError
@@ -201,6 +201,26 @@ async def stream_endpoint(
         await session.flush()
 
     history = await _history(session, chat_session.id)
+    history_injection = check_history_injection(history)
+    if history_injection is not None:
+        try:
+            await write_audit(
+                session,
+                user_id=user.id,
+                action="chat.prompt_injection",
+                resource_type="chat",
+                detail={"pattern": history_injection, "source": "history"},
+                ip=request_ip,
+            )
+            await session.commit()
+        except Exception:  # noqa: BLE001
+            logger.exception("prompt injection audit failed")
+        raise ApiError(
+            400,
+            "PROMPT_INJECTION_BLOCKED",
+            "历史消息包含不允许的指令，请新建会话",
+        )
+
     session.add(
         ChatMessage(
             session_id=chat_session.id,

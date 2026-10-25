@@ -19,4 +19,6 @@ async def test_unhandled_error_hides_details(app_instance: Any) -> None:
     assert "secret SQL details" not in response.text
     assert "Traceback" not in response.text
     assert response.json()["code"] == "INTERNAL_ERROR"
-    assert response.json()["details"]["request_id"]
+    request_id = response.json()["details"]["request_id"]
+    assert request_id
+    assert response.headers["X-Request-ID"] == request_id

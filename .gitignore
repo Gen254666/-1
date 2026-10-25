@@ -31,6 +31,12 @@ data/exports/
 !data/templates/
 !data/templates/**/*.csv
 
+# Backups (may contain business data)
+backups/
+*.dump
+*.dump.enc
+*.tar.gz.enc
+
 # Databases / vector store
 *.sqlite
 *.db

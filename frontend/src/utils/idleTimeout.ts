@@ -1,3 +1,25 @@
+export const IDLE_STORAGE_KEY = "steel:last_activity";
+
+export function touchActivity(storage: Storage, nowMs: number = Date.now()): void {
+  try {
+    storage.setItem(IDLE_STORAGE_KEY, String(nowMs));
+  } catch {
+    // storage can be unavailable in private browsing; server timeout still applies
+  }
+}
+
+export function readLastActivity(
+  storage: Storage,
+  nowMs: number = Date.now(),
+): number {
+  try {
+    const value = Number(storage.getItem(IDLE_STORAGE_KEY));
+    return Number.isFinite(value) && value > 0 ? value : nowMs;
+  } catch {
+    return nowMs;
+  }
+}
+
 export function shouldIdleLogout(
   lastActivityMs: number,
   nowMs: number,
