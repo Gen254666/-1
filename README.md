@@ -195,6 +195,25 @@ docker compose --env-file .env.prod \
 
 ## 备份与恢复
 
+### Docker 本机每日备份（当前使用方式）
+
+`.env` 中 `BACKUP_PASSPHRASE` 必须 ≥32 位；`BACKUP_KEEP_DAYS` 默认 30 天。脚本从容器内导出 PostgreSQL 和共享 Chroma 卷，加密后写入 `backups/`。
+
+```bash
+# 手动执行一次
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts/run_backup.ps1
+
+# 安装每日 02:30 计划任务（当前用户登录时运行，错过会补跑）
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts/install_backup_task.ps1
+
+# 恢复演练：恢复到最后时间戳备份的临时库，校验计数后自动删除临时库
+bash scripts/verify_restore.sh
+```
+
+日志在 `backups/backup.log`。备份目录与文件仅当前 Windows 用户可访问；Docker 栈需先启动。Chroma 卷已同时挂载到 agent 与 mcp-server，知识库文档会进入同一卷并被备份。
+
+### 非 Docker 主机备份
+
 生产备份必须设置加密口令；备份目录 0700、文件 0600：
 
 ```bash
