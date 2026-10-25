@@ -95,6 +95,27 @@ uv run python ../scripts/validate_business_data.py \
 
 校验通过后，在前端“管理 → 导入数据”上传库存 Excel。系统会自动创建/更新方管、矩管点位，并用库存单价生成当日行情，不需要再手工填写 Mysteel 报价 CSV。部分规格缺单价时仍会建点位但不生成行情；缺支重的规格可以展示行情，但不能生成客户报价。
 
+### 行情点位与自动报价
+
+- 公共点位由库存规格自动生成：编码包含规格与长度，同一规格多行时取支数最多的一行。
+- 每次库存导入自动生成当日报价版本；重复导入不会产生重复版本。
+- 回滚库存批次后，系统会从恢复后的库存快照重新推导点位和行情。
+- 自动生成的行情批次在管理页可见，但不能单独回滚，请回滚对应库存批次。
+- 报价页的规格下拉直接来自当前库存，按方管/矩管分组并支持搜索。
+
+已部署环境如需从现有库存快照补生成点位和行情：
+
+```bash
+cd backend
+uv run python ../scripts/sync_inventory_points.py --date 2026-10-25
+```
+
+Docker 环境下：
+
+```bash
+docker compose exec -T agent python -m steel_core.cli.sync_inventory --date 2026-10-25
+```
+
 ## Docker 部署
 
 ```bash

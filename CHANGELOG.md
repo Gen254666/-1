@@ -34,3 +34,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - 数据接口按用户 120 次/分钟限流
 - 日报 LLM 失败时自动降级为事实稿
 - 后端 CI（ruff、mypy、pytest）与前端 CI（Vitest、build）
+- 库存规格驱动的 370 个公共点位与库存单价自动行情
+- 报价页动态库存规格选择、看板品类筛选与规格搜索
+- 日报与 MCP 输出条数上限、点位查询过滤与 limit
+- `sync_inventory` 迁移/修复 CLI，支持 `--force`
+
+### Changed
+
+- 公共行情点位不再固定 16 个，改由库存规格自动生成
+- 管理页只接受库存 Excel，公共报价 CSV 导入入口移除
+- 种子数据不再创建公共点位；空库首次导入库存后生成
+
+### Removed
+
+- Mysteel 16 点位报价模板与命令行导入脚本
