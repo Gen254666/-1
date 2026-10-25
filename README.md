@@ -139,6 +139,33 @@ uv run python ../scripts/validate_deploy.py
 
 > 本机已在 Windows 11 + Docker Desktop（WSL2）完成实际部署验证：镜像构建、迁移、种子、前端/健康检查/登录冒烟均通过。前端默认映射 8080，端口 80 被占用时可通过 `.env` 的 `FRONTEND_PORT` 调整。RAG 嵌入模型首次使用会从 `HF_ENDPOINT`（默认 hf-mirror）下载，并已禁用 Xet 以避免镜像源 401。
 
+### 生产部署（公司内部多人）
+
+1. 生成强随机密钥并写入独立 env 文件：
+
+```bash
+python scripts/generate_secrets.py --write .env.prod
+chmod 600 .env.prod
+```
+
+2. 在 `.env.prod` 中补充：`ENVIRONMENT=prod`、`APP_DOMAIN=你的域名`、`CORS_ORIGINS=["https://你的域名"]`、`AGENT_WORKERS=2`、DeepSeek/其他 LLM Key，以及 `BACKUP_PASSPHRASE`。
+3. 用生产 overlay 启动（Caddy 自动申请/续期 TLS 证书，仅暴露 80/443）：
+
+```bash
+docker compose --env-file .env.prod \
+  -f docker-compose.yml -f docker-compose.prod.yml up -d --build
+docker compose --env-file .env.prod \
+  -f docker-compose.yml -f docker-compose.prod.yml run --rm agent alembic upgrade head
+docker compose --env-file .env.prod \
+  -f docker-compose.yml -f docker-compose.prod.yml run --rm \
+  -e INITIAL_ADMIN_PASSWORD='首次管理员强密码' agent python -m steel_core.db.seed
+```
+
+4. 访问 `https://你的域名`。PostgreSQL、Redis、Agent、MCP 均不直接暴露到公网。
+5. 上线检查：确认 `.env.prod` 权限 600、JWT/MCP 密钥非默认、CORS 只含正式域名、备份已加密并做一次恢复演练、监控磁盘与 `/readyz`、为管理员配置 LLM 每日额度。
+
+安全默认值：登录失败 5 次锁定 15 分钟、会话空闲 60 分钟登出、对话 20 次/分钟、数据接口 120 次/分钟、导入 5 次/分钟、每用户每日 LLM 请求 200 次；均可在 `.env` 调整。导入和回滚必须二次确认并带 `confirm=true`。
+
 ## 备份与恢复
 
 生产备份必须设置加密口令；备份目录 0700、文件 0600：

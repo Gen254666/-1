@@ -38,6 +38,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - 报价页动态库存规格选择、看板品类筛选与规格搜索
 - 日报与 MCP 输出条数上限、点位查询过滤与 limit
 - `sync_inventory` 迁移/修复 CLI，支持 `--force`
+- 生产部署 overlay（Caddy TLS）、安全头、密钥生成与生产配置校验
+- 登录/导入/回滚/权限/MCP 调用审计（含 IP）
+- 会话空闲超时、前端自动登出
+- 提示注入过滤、不可信工具数据隔离、导出 Markdown 转义
+- LLM 每日配额与厂商重试上限
+- 导入/回滚二次确认、导入限流、全局错误脱敏
+- 加密备份脚本与验证脚本
 
 ### Changed
 
