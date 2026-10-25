@@ -1,7 +1,13 @@
-import { escapeMarkdown, quoteToMarkdown } from "../utils/export";
+import { applyWatermark, escapeMarkdown, quoteToMarkdown } from "../utils/export";
 
 test("escapes markdown control characters", () => {
   expect(escapeMarkdown("A*B_[C]")).toBe("A\\*B\\_\\[C\\]");
+});
+
+test("applies watermark at top and bottom", () => {
+  const result = applyWatermark("# 报价单", "> 导出人：alice");
+  expect(result.startsWith("> 导出人：alice")).toBe(true);
+  expect(result.trimEnd().endsWith("> 导出人：alice")).toBe(true);
 });
 
 test("serializes quote to markdown with sources and disclaimer", () => {

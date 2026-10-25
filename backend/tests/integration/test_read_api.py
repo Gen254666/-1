@@ -4,11 +4,12 @@ from decimal import Decimal
 
 import httpx
 import pytest
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from steel_core.db.enums import DatasetType, PointScope, Role
 from steel_core.db.models.accounts import User
-from steel_core.db.models.governance import AppConfig, DailyReport, DatasetVersion
+from steel_core.db.models.governance import AppConfig, AuditLog, DailyReport, DatasetVersion
 from steel_core.db.models.inventory import InventoryItem, InventorySnapshot
 from steel_core.db.models.market import MarketQuote, PricePoint
 from steel_core.security import hash_password
@@ -225,6 +226,78 @@ async def test_inventory_dashboard_and_quote_generate(
         headers=headers,
         json={"spec": "not-exist", "pieces": 1},
     )
+    assert missing.status_code == 404
+
+
+async def test_quote_export_audits_and_watermarks(
+    session: AsyncSession, app_client: httpx.AsyncClient
+) -> None:
+    user = await _create_user(session)
+    await _seed_inventory(session, user)
+    headers = await _auth_headers(app_client)
+
+    response = await app_client.post(
+        "/api/exports/quote",
+        headers=headers,
+        json={
+            "spec": "100×100×2.5×6m",
+            "pieces": 10,
+            "freight": 100,
+            "processing_fee": 50,
+        },
+    )
+
+    assert response.status_code == 200, response.text
+    payload = response.json()
+    assert payload["export_id"]
+    assert payload["filename"].endswith(".md")
+    assert "alice" in payload["watermark"]
+    assert payload["export_id"] in payload["watermark"]
+    audit = await session.scalar(
+        select(AuditLog)
+        .where(AuditLog.action == "export.quote")
+        .order_by(AuditLog.created_at.desc())
+    )
+    assert audit is not None
+    assert audit.ip
+
+
+async def test_report_export_audits_and_watermarks(
+    session: AsyncSession, app_client: httpx.AsyncClient
+) -> None:
+    user = await _create_user(session)
+    session.add(
+        DailyReport(
+            report_date=TODAY,
+            version_no=1,
+            markdown="# 日报\n\n今日行情",
+            sources=[],
+            disclaimer="报告免责",
+            model="test",
+            created_by=user.id,
+        )
+    )
+    await session.commit()
+    headers = await _auth_headers(app_client)
+
+    response = await app_client.post(
+        f"/api/reports/{TODAY.isoformat()}/export", headers=headers
+    )
+
+    assert response.status_code == 200, response.text
+    payload = response.json()
+    assert "alice" in payload["content"]
+    assert "今日行情" in payload["content"]
+    assert payload["export_id"] in payload["content"]
+    audit = await session.scalar(
+        select(AuditLog)
+        .where(AuditLog.action == "export.report")
+        .order_by(AuditLog.created_at.desc())
+    )
+    assert audit is not None
+    assert audit.ip
+
+    missing = await app_client.post("/api/reports/2026-10-01/export", headers=headers)
     assert missing.status_code == 404
 
 

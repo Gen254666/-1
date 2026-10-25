@@ -4,6 +4,11 @@ export function escapeMarkdown(value: string): string {
   return value.replace(/([\\`*_{}\[\]|<>])/g, "\\$1");
 }
 
+export function applyWatermark(markdown: string, watermark: string): string {
+  if (!watermark) return markdown;
+  return `${watermark}\n\n${markdown.trimEnd()}\n\n${watermark}\n`;
+}
+
 export function quoteToMarkdown(quote: QuoteResult): string {
   const rows = quote.lines.map(
     (line) =>

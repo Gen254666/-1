@@ -5,12 +5,14 @@ import { useEffect, useState } from "react";
 import { apiGet, apiPost } from "../api/client";
 import type { InventoryPage, QuoteResult } from "../api/types";
 import { ArtifactRenderer } from "../components/ArtifactRenderer";
-import { downloadText, quoteToMarkdown } from "../utils/export";
+import { applyWatermark, downloadText, quoteToMarkdown } from "../utils/export";
 import { buildSpecOptionGroups, type SpecOptionGroup } from "../utils/specOptions";
 
 export function QuotePage() {
   const [result, setResult] = useState<QuoteResult | null>(null);
+  const [lastRequest, setLastRequest] = useState<any>(null);
   const [loading, setLoading] = useState(false);
+  const [exporting, setExporting] = useState(false);
   const [specGroups, setSpecGroups] = useState<SpecOptionGroup[]>([]);
 
   useEffect(() => {
@@ -24,10 +26,30 @@ export function QuotePage() {
     try {
       const quote = await apiPost<QuoteResult>("/api/quote/generate", values);
       setResult(quote);
+      setLastRequest(values);
     } catch (error) {
       message.error((error as Error).message);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const exportMarkdown = async () => {
+    if (!result || !lastRequest) return;
+    setExporting(true);
+    try {
+      const info = await apiPost<{ filename: string; watermark: string }>(
+        "/api/exports/quote",
+        lastRequest,
+      );
+      downloadText(
+        info.filename,
+        applyWatermark(quoteToMarkdown(result), info.watermark),
+      );
+    } catch (error) {
+      message.error((error as Error).message);
+    } finally {
+      setExporting(false);
     }
   };
 
@@ -76,12 +98,8 @@ export function QuotePage() {
         <div className="page-stack">
           <Button
             icon={<DownloadOutlined />}
-            onClick={() =>
-              downloadText(
-                `报价单-${result.valid_until}.md`,
-                quoteToMarkdown(result),
-              )
-            }
+            loading={exporting}
+            onClick={() => void exportMarkdown()}
           >
             导出 Markdown
           </Button>

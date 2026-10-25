@@ -1,11 +1,12 @@
 from __future__ import annotations
 
-from datetime import date
+import uuid
+from datetime import UTC, date, datetime
 from decimal import Decimal
 from typing import Any
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Query, Request
 from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -15,11 +16,14 @@ from app.chat.dependencies import get_llm_router
 from app.core.config import get_settings
 from app.core.db import get_db_session
 from app.core.errors import ApiError
+from app.core.http import client_ip
 from app.core.rate_limit import data_rate_limit
 from app.core.redis import get_redis_client
 from app.llm.quota import consume_llm_quota
 from app.report.service import generate_and_save_report
+from app.report.watermark import apply_watermark, build_watermark
 from steel_core.analysis.service import Anomaly, scan_anomalies
+from steel_core.audit.service import write_audit
 from steel_core.db.models.accounts import User
 from steel_core.db.models.governance import AppConfig, DailyReport
 from steel_core.query.service import (
@@ -244,6 +248,14 @@ async def generate_quote_endpoint(
     user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_db_session),
 ) -> dict[str, Any]:
+    return await _build_quote_payload(payload, user, session)
+
+
+async def _build_quote_payload(
+    payload: QuoteRequest,
+    user: User,
+    session: AsyncSession,
+) -> dict[str, Any]:
     visible_points = await list_points(session, user_id=user.id)
     point = None
     if payload.point_id is not None:
@@ -316,6 +328,88 @@ async def generate_quote_endpoint(
         "sources": sources,
         "disclaimer": await _quote_disclaimer(session),
         "valid_until": date.today().isoformat(),
+    }
+
+
+@router.post("/exports/quote")
+async def export_quote_endpoint(
+    payload: QuoteRequest,
+    request: Request,
+    user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_db_session),
+) -> dict[str, Any]:
+    quote = await _build_quote_payload(payload, user, session)
+    export_id = uuid.uuid4().hex
+    now = datetime.now(UTC)
+    watermark = build_watermark(
+        username=user.username,
+        export_id=export_id,
+        export_time=now.isoformat(timespec="seconds"),
+        scope="报价单",
+    )
+    first_line = quote["lines"][0] if quote["lines"] else {}
+    await write_audit(
+        session,
+        user_id=user.id,
+        action="export.quote",
+        resource_type="export",
+        resource_id=export_id,
+        detail={
+            "spec": first_line.get("spec") or payload.spec,
+            "pieces": payload.pieces,
+            "total": quote["total"],
+        },
+        ip=client_ip(request),
+    )
+    await session.commit()
+    return {
+        "export_id": export_id,
+        "filename": f"报价单-{quote['valid_until']}-{export_id[:8]}.md",
+        "watermark": watermark,
+    }
+
+
+@router.post("/reports/{report_date}/export")
+async def export_report_endpoint(
+    report_date: date,
+    request: Request,
+    user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_db_session),
+) -> dict[str, Any]:
+    report = await session.scalar(
+        select(DailyReport)
+        .where(DailyReport.report_date == report_date)
+        .order_by(DailyReport.version_no.desc())
+        .limit(1)
+    )
+    if report is None:
+        raise ApiError(404, "NOT_FOUND", "该日期没有日报")
+    export_id = uuid.uuid4().hex
+    now = datetime.now(UTC)
+    watermark = build_watermark(
+        username=user.username,
+        export_id=export_id,
+        export_time=now.isoformat(timespec="seconds"),
+        scope="日报",
+    )
+    content = apply_watermark(report.markdown, watermark)
+    await write_audit(
+        session,
+        user_id=user.id,
+        action="export.report",
+        resource_type="export",
+        resource_id=export_id,
+        detail={
+            "report_date": report.report_date.isoformat(),
+            "version_no": report.version_no,
+        },
+        ip=client_ip(request),
+    )
+    await session.commit()
+    return {
+        "export_id": export_id,
+        "filename": f"日报-{report.report_date.isoformat()}-{export_id[:8]}.md",
+        "content": content,
     }
 
 

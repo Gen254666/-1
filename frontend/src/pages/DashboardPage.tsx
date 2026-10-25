@@ -1,9 +1,10 @@
-import { Alert, Card, Col, Input, List, Row, Spin, Table, Tabs, Tag } from "antd";
+import { Alert, Button, Card, Col, Input, List, Row, Spin, Table, Tabs, Tag, message } from "antd";
 import { useEffect, useState } from "react";
 
-import { apiGet } from "../api/client";
+import { apiGet, apiPost } from "../api/client";
 import type { DashboardData } from "../api/types";
 import { QuoteCards } from "../components/QuoteCards";
+import { downloadText } from "../utils/export";
 
 interface ReportItem {
   report_date: string;
@@ -16,6 +17,7 @@ export function DashboardPage() {
   const [loading, setLoading] = useState(true);
   const [category, setCategory] = useState("全部");
   const [search, setSearch] = useState("");
+  const [exportingReport, setExportingReport] = useState(false);
 
   useEffect(() => {
     Promise.all([
@@ -28,6 +30,21 @@ export function DashboardPage() {
       })
       .finally(() => setLoading(false));
   }, []);
+
+  const exportReport = async () => {
+    if (!latestReport) return;
+    setExportingReport(true);
+    try {
+      const info = await apiPost<{ filename: string; content: string }>(
+        `/api/reports/${latestReport.report_date}/export`,
+      );
+      downloadText(info.filename, info.content);
+    } catch (error) {
+      message.error((error as Error).message);
+    } finally {
+      setExportingReport(false);
+    }
+  };
 
   if (loading) return <Spin />;
   if (!data) return <Alert type="error" message="看板数据加载失败" />;
@@ -105,7 +122,16 @@ export function DashboardPage() {
         />
       </Card>
 
-      <Card title="最新日报">
+      <Card
+        title="最新日报"
+        extra={
+          latestReport ? (
+            <Button size="small" loading={exportingReport} onClick={() => void exportReport()}>
+              导出日报
+            </Button>
+          ) : null
+        }
+      >
         {latestReport ? (
           <pre className="report-text">{latestReport.markdown}</pre>
         ) : (

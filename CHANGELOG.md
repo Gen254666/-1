@@ -45,6 +45,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - LLM 每日配额与厂商重试上限
 - 导入/回滚二次确认、导入限流、全局错误脱敏
 - 加密备份脚本与验证脚本
+- 报价/日报导出审计与导出人/时间/编号水印
+- Windows 每日加密备份计划任务与 Docker 备份/恢复演练脚本
 
 ### Changed
 
