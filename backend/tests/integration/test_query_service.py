@@ -44,6 +44,7 @@ async def _make_point(
     category: str = "方管",
     spec: str = "100*100*2.5*6m",
     region: str = "昆明",
+    is_active: bool = True,
 ) -> PricePoint:
     point = PricePoint(
         scope=PointScope.PRIVATE if owner is not None else PointScope.PUBLIC,
@@ -54,6 +55,7 @@ async def _make_point(
         region=region,
         source="mysteel",
         unit="元/吨",
+        is_active=is_active,
     )
     session.add(point)
     await session.flush()
@@ -291,6 +293,65 @@ async def test_get_inventory_filters_and_paginates(session: AsyncSession) -> Non
     assert found is not None
     assert found.spec == "100*150*2.5*6m"
     assert found.unit_price == Decimal("3320")
+
+
+async def test_quotes_and_history_exclude_inactive_points(session: AsyncSession) -> None:
+    owner = await _make_user(session)
+    point = await _make_point(session, "OLD", is_active=False)
+    version = await _make_version(session, owner)
+    await _add_quote(session, version, point, "3500")
+
+    page = await get_quotes(session, user_id=owner.id)
+    assert page.total == 0
+
+    history = await get_price_history(
+        session,
+        user_id=owner.id,
+        point_ids=[point.id],
+        start_date=QUOTE_DATE - timedelta(days=7),
+        end_date=QUOTE_DATE,
+    )
+    assert history == []
+
+
+async def test_find_inventory_item_prefers_max_pieces(session: AsyncSession) -> None:
+    owner = await _make_user(session)
+    version = await _make_version(session, owner, dataset_type=DatasetType.INVENTORY)
+    snapshot = InventorySnapshot(
+        version_id=version.id,
+        snapshot_date=QUOTE_DATE,
+        warehouse="昆明宝象库",
+        source_file="10.25.xlsx",
+    )
+    session.add(snapshot)
+    await session.flush()
+    session.add_all(
+        [
+            InventoryItem(
+                snapshot_id=snapshot.id,
+                block="方管",
+                spec="120*120*3.75*6m",
+                unit_price=Decimal("3300"),
+                pieces=2,
+                row_no=26,
+            ),
+            InventoryItem(
+                snapshot_id=snapshot.id,
+                block="方管",
+                spec="120*120*3.75*6m",
+                unit_price=Decimal("3320"),
+                pieces=268,
+                row_no=27,
+            ),
+        ]
+    )
+    await session.flush()
+
+    item = await find_inventory_item(session, spec="120×120×3.75×6m")
+
+    assert item is not None
+    assert item.pieces == 268
+    assert item.unit_price == Decimal("3320")
 
 
 async def test_get_inventory_without_snapshot(session: AsyncSession) -> None:

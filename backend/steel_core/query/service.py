@@ -116,14 +116,29 @@ async def find_inventory_item(
 ) -> InventoryRecord | None:
     target = normalize_spec(spec)
     page = 1
+    matches: list[InventoryRecord] = []
     while True:
-        result = await get_inventory(session, category=category, page=page, page_size=MAX_PAGE_SIZE)
+        result = await get_inventory(
+            session, category=category, page=page, page_size=MAX_PAGE_SIZE
+        )
         for item in result.items:
-            if normalize_spec(item.spec) == target and item.unit_price is not None:
-                return item
+            if normalize_spec(item.spec) != target or item.unit_price is None:
+                continue
+            if category is not None and not _block_matches_category(item.block, category):
+                continue
+            matches.append(item)
         if page * MAX_PAGE_SIZE >= result.total or not result.items:
-            return None
+            break
         page += 1
+    if not matches:
+        return None
+    return max(matches, key=lambda item: (-1 if item.pieces is None else item.pieces))
+
+
+def _block_matches_category(block: str, category: str) -> bool:
+    if category == "矩管":
+        return block in {"矩管", "矩形管"}
+    return block == category
 
 
 def _validate_pagination(page: int, page_size: int) -> None:
@@ -152,6 +167,7 @@ def _active_quote_select(user_id: UUID) -> Any:
         .where(
             DatasetVersion.status == VersionStatus.ACTIVE,
             version_visibility(user_id),
+            PricePoint.is_active.is_(True),
         )
     )
 
@@ -200,6 +216,7 @@ async def get_quotes(
                 DatasetVersion.status == VersionStatus.ACTIVE,
                 visibility,
                 versions,
+                PricePoint.is_active.is_(True),
             )
         )
         quote_date = await session.scalar(latest_statement)
@@ -210,6 +227,7 @@ async def get_quotes(
         DatasetVersion.status == VersionStatus.ACTIVE,
         visibility,
         versions,
+        PricePoint.is_active.is_(True),
         MarketQuote.quote_date == quote_date,
     ]
     if category is not None:
