@@ -7,142 +7,10 @@ from typing import Any
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from steel_core.db.enums import PointScope, Role
+from steel_core.db.enums import Role
 from steel_core.db.models.accounts import User
 from steel_core.db.models.governance import AppConfig
-from steel_core.db.models.market import PricePoint
 from steel_core.security import hash_password
-
-PUBLIC_POINTS: list[dict[str, Any]] = [
-    {
-        "code": "FANG_100X100X2.5_KUNMING",
-        "category": "方管",
-        "spec": "100×100×2.5×6m",
-        "region": "昆明",
-        "source": "mysteel",
-        "unit": "元/吨",
-    },
-    {
-        "code": "FANG_150X150X3.0_KUNMING",
-        "category": "方管",
-        "spec": "150×150×3.0×6m",
-        "region": "昆明",
-        "source": "mysteel",
-        "unit": "元/吨",
-    },
-    {
-        "code": "JU_100X150X2.5_KUNMING",
-        "category": "矩管",
-        "spec": "100×150×2.5×6m",
-        "region": "昆明",
-        "source": "mysteel",
-        "unit": "元/吨",
-    },
-    {
-        "code": "JU_100X200X3.0_KUNMING",
-        "category": "矩管",
-        "spec": "100×200×3.0×6m",
-        "region": "昆明",
-        "source": "mysteel",
-        "unit": "元/吨",
-    },
-    {
-        "code": "HANGUAN_4IN_3.75_KUNMING",
-        "category": "圆管",
-        "spec": "4寸×3.75",
-        "region": "昆明",
-        "source": "mysteel",
-        "unit": "元/吨",
-    },
-    {
-        "code": "DUXINGUAN_4IN_3.75_KUNMING",
-        "category": "镀锌管",
-        "spec": "4寸×3.75",
-        "region": "昆明",
-        "source": "mysteel",
-        "unit": "元/吨",
-    },
-    {
-        "code": "JIAOGANG_50X5_KUNMING",
-        "category": "角钢",
-        "spec": "50×5",
-        "region": "昆明",
-        "source": "mysteel",
-        "unit": "元/吨",
-    },
-    {
-        "code": "CAOGANG_16_KUNMING",
-        "category": "槽钢",
-        "spec": "16#",
-        "region": "昆明",
-        "source": "mysteel",
-        "unit": "元/吨",
-    },
-    {
-        "code": "HXINGGANG_300X300_KUNMING",
-        "category": "H型钢",
-        "spec": "300×300",
-        "region": "昆明",
-        "source": "mysteel",
-        "unit": "元/吨",
-    },
-    {
-        "code": "ZHONGHOUBAN_20_KUNMING",
-        "category": "中厚板",
-        "spec": "20mm",
-        "region": "昆明",
-        "source": "mysteel",
-        "unit": "元/吨",
-    },
-    {
-        "code": "REJUAN_4.75X1500_KUNMING",
-        "category": "热卷",
-        "spec": "4.75×1500×C",
-        "region": "昆明",
-        "source": "mysteel",
-        "unit": "元/吨",
-    },
-    {
-        "code": "GAOXIAN_PHI8_KUNMING",
-        "category": "高线",
-        "spec": "Φ8",
-        "region": "昆明",
-        "source": "mysteel",
-        "unit": "元/吨",
-    },
-    {
-        "code": "PANLUO_PHI8_KUNMING",
-        "category": "盘螺",
-        "spec": "Φ8",
-        "region": "昆明",
-        "source": "mysteel",
-        "unit": "元/吨",
-    },
-    {
-        "code": "LUOWENG_HBR400E_PHI20_KUNMING",
-        "category": "螺纹钢",
-        "spec": "HRB400E Φ20",
-        "region": "昆明",
-        "source": "mysteel",
-        "unit": "元/吨",
-    },
-    {
-        "code": "REJUAN_4.75X1500_CHENGDU",
-        "category": "热卷",
-        "spec": "4.75×1500×C",
-        "region": "成都",
-        "source": "mysteel",
-        "unit": "元/吨",
-    },
-    {
-        "code": "LUOWENG_HBR400E_PHI20_GUIYANG",
-        "category": "螺纹钢",
-        "spec": "HRB400E Φ20",
-        "region": "贵阳",
-        "source": "mysteel",
-        "unit": "元/吨",
-    },
-]
 
 DEFAULT_APP_CONFIG: dict[str, dict[str, Any]] = {
     "anomaly": {
@@ -165,7 +33,6 @@ async def seed_all(
     session: AsyncSession, *, admin_username: str, admin_password: str
 ) -> dict[str, int]:
     created_users = 0
-    created_points = 0
     created_configs = 0
 
     existing_admin = await session.scalar(select(User).where(User.username == admin_username))
@@ -181,12 +48,6 @@ async def seed_all(
         )
         created_users = 1
 
-    existing_codes = set(await session.scalars(select(PricePoint.code)))
-    for point in PUBLIC_POINTS:
-        if point["code"] not in existing_codes:
-            session.add(PricePoint(scope=PointScope.PUBLIC, **point))
-            created_points += 1
-
     existing_keys = set(await session.scalars(select(AppConfig.key)))
     for key, value in DEFAULT_APP_CONFIG.items():
         if key not in existing_keys:
@@ -196,7 +57,7 @@ async def seed_all(
     await session.commit()
     return {
         "users": created_users,
-        "points": created_points,
+        "points": 0,
         "configs": created_configs,
     }
 
