@@ -164,6 +164,22 @@ docker compose --env-file .env.prod \
 4. 访问 `https://你的域名`。PostgreSQL、Redis、Agent、MCP 均不直接暴露到公网。
 5. 上线检查：确认 `.env.prod` 权限 600、JWT/MCP 密钥非默认、CORS 只含正式域名、备份已加密并做一次恢复演练、监控磁盘与 `/readyz`、为管理员配置 LLM 每日额度。
 
+### CDN 回源模式（CDN 终止 TLS）
+
+如果域名通过 CDN（如 35ba）对外，CDN 负责 HTTPS，本机只提供 HTTP 源站：
+
+```bash
+docker compose --env-file .env.prod \
+  -f docker-compose.yml -f docker-compose.prod.yml -f docker-compose.cdn.yml \
+  up -d --build
+```
+
+- 本机 Nginx 发布 `80:80`，不再启动 Caddy；CDN 回源到 `http://公网IP:80`。
+- 路由器需把公网 80 转发到本机局域网 IP；本机防火墙只允许 CDN 回源 IP 访问 80。
+- 35ba 回源设置示例：源站 `http://117.143.114.238:80`，并保留 `Host`、`X-Forwarded-For`、`X-Real-IP` 请求头。
+- 公网 IP 动态时先配置 DDNS；运营商封 80 时改用 CDN 支持的自定义回源端口。
+- 本机 `/metrics` 已返回 404；Prometheus 如需抓取，请从内部网络访问 agent:8000。
+
 安全默认值：登录失败 5 次锁定 15 分钟、会话空闲 60 分钟登出、对话 20 次/分钟、数据接口 120 次/分钟、导入 5 次/分钟、每用户每日 LLM 请求 200 次；均可在 `.env` 调整。导入和回滚必须二次确认并带 `confirm=true`。
 
 ### 密钥轮换

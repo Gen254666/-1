@@ -60,6 +60,7 @@ services:
 
   caddy:
     image: caddy:2-alpine
+    profiles: ["tls"]
     restart: unless-stopped
     environment:
       APP_DOMAIN: ${APP_DOMAIN:?set APP_DOMAIN to the public hostname}
@@ -69,7 +70,7 @@ services:
       - "443:443"
       - "443:443/udp"
     volumes:
-      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - ${CADDYFILE:-./deploy/Caddyfile}:/etc/caddy/Caddyfile:ro
       - caddy_data:/data
       - caddy_config:/config
     depends_on:

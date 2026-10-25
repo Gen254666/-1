@@ -110,6 +110,11 @@ check(
     "proxy_set_header X-Real-IP $http_x_real_ip;" in nginx,
     "nginx must preserve the trusted X-Real-IP",
 )
+check(
+    "proxy_set_header X-Forwarded-Proto https;" in nginx,
+    "nginx origin must forward https scheme",
+)
+check("location = /metrics" in nginx and "return 404;" in nginx, "nginx must block /metrics")
 
 prod: dict[str, Any] = load_compose("docker-compose.prod.yml")
 prod_services: dict[str, Any] = prod.get("services", {})
@@ -119,6 +124,10 @@ check(not prod_frontend.get("ports"), "prod frontend must not publish host ports
 check("80" in [str(item) for item in prod_frontend.get("expose", [])], "prod frontend must expose 80")
 caddy_ports = [str(port) for port in prod_services.get("caddy", {}).get("ports", [])]
 check(any(port.startswith("443:") for port in caddy_ports), "caddy must publish 443")
+check("tls" in prod_services.get("caddy", {}).get("profiles", []), "caddy must be opt-in")
+cdn = load_compose("docker-compose.cdn.yml")
+cdn_ports = [str(port) for port in cdn.get("services", {}).get("frontend", {}).get("ports", [])]
+check("80:80" in cdn_ports, "CDN origin overlay must publish frontend :80")
 for name in ("postgres", "redis", "mcp-server", "agent", "frontend", "caddy"):
     service = prod_services.get(name, {})
     check(service.get("restart") == "unless-stopped", f"prod {name} must restart")
@@ -140,6 +149,10 @@ check(
     "Caddy must overwrite X-Real-IP",
 )
 check("respond @metrics 404" in caddy, "Caddy must block /metrics")
+check(
+    any("${CADDYFILE" in str(volume) for volume in prod_services.get("caddy", {}).get("volumes", [])),
+    "prod Caddy must allow a Caddyfile override",
+)
 check((ROOT / "scripts/generate_secrets.py").exists(), "generate_secrets.py missing")
 
 init_db = read("deploy/init_db.sh")
