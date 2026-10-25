@@ -20,6 +20,7 @@ from steel_core.analysis.service import Anomaly, scan_anomalies
 from steel_core.db.models.accounts import User
 from steel_core.db.models.governance import AppConfig, DailyReport
 from steel_core.query.service import (
+    MAX_PAGE_SIZE,
     InventoryPage,
     QueryValidationError,
     QuoteRecord,
@@ -216,9 +217,11 @@ async def dashboard_endpoint(
         user_id=user.id,
         quote_date=quote_date,
         page=1,
-        page_size=100,
+        page_size=MAX_PAGE_SIZE,
     )
-    inventory = await get_inventory(session, snapshot_date=quote_date, page_size=100)
+    inventory = await get_inventory(
+        session, snapshot_date=quote_date, page_size=MAX_PAGE_SIZE
+    )
     anomalies = await scan_anomalies(session, user_id=user.id, quote_date=quote_date)
     as_of = quotes.items[0].quote_date if quotes.items else inventory.snapshot_date
     return {

@@ -16,7 +16,7 @@ from steel_core.db.models.governance import DatasetVersion
 from steel_core.db.models.inventory import InventoryItem, InventorySnapshot
 from steel_core.db.models.market import MarketQuote, PricePoint
 
-MAX_PAGE_SIZE = 100
+MAX_PAGE_SIZE = 500
 MAX_HISTORY_DAYS = 730
 MAX_HISTORY_POINTS = 20
 

@@ -1,4 +1,4 @@
-import { Alert, Card, Col, List, Row, Spin, Table, Tag } from "antd";
+import { Alert, Card, Col, Input, List, Row, Spin, Table, Tabs, Tag } from "antd";
 import { useEffect, useState } from "react";
 
 import { apiGet } from "../api/client";
@@ -14,6 +14,8 @@ export function DashboardPage() {
   const [data, setData] = useState<DashboardData | null>(null);
   const [latestReport, setLatestReport] = useState<ReportItem | null>(null);
   const [loading, setLoading] = useState(true);
+  const [category, setCategory] = useState("全部");
+  const [search, setSearch] = useState("");
 
   useEffect(() => {
     Promise.all([
@@ -30,12 +32,34 @@ export function DashboardPage() {
   if (loading) return <Spin />;
   if (!data) return <Alert type="error" message="看板数据加载失败" />;
 
+  const keyword = search.trim().toLowerCase();
+  const filteredQuotes = data.quotes.items.filter((item) => {
+    if (category !== "全部" && item.category !== category) return false;
+    if (!keyword) return true;
+    return `${item.spec} ${item.code}`.toLowerCase().includes(keyword);
+  });
+
   return (
     <div className="page-stack">
       <Row gutter={16}>
         <Col span={18}>
-          <Card title={`当日报价 ${data.date ?? ""}`}>
-            <QuoteCards items={data.quotes.items} />
+          <Card
+            title={`当日报价 ${data.date ?? ""}（${filteredQuotes.length}/${data.quotes.total}）`}
+          >
+            <Tabs
+              size="small"
+              activeKey={category}
+              onChange={setCategory}
+              items={["全部", "方管", "矩管"].map((label) => ({ key: label, label }))}
+            />
+            <Input.Search
+              allowClear
+              placeholder="搜索规格"
+              value={search}
+              onChange={(event) => setSearch(event.target.value)}
+              style={{ maxWidth: 280, marginBottom: 16 }}
+            />
+            <QuoteCards items={filteredQuotes} />
           </Card>
         </Col>
         <Col span={6}>

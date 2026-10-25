@@ -1,15 +1,23 @@
 import { DownloadOutlined } from "@ant-design/icons";
 import { Button, Card, Form, InputNumber, Select, message } from "antd";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
-import { apiPost } from "../api/client";
-import type { QuoteResult } from "../api/types";
+import { apiGet, apiPost } from "../api/client";
+import type { InventoryPage, QuoteResult } from "../api/types";
 import { ArtifactRenderer } from "../components/ArtifactRenderer";
 import { downloadText, quoteToMarkdown } from "../utils/export";
+import { buildSpecOptionGroups, type SpecOptionGroup } from "../utils/specOptions";
 
 export function QuotePage() {
   const [result, setResult] = useState<QuoteResult | null>(null);
   const [loading, setLoading] = useState(false);
+  const [specGroups, setSpecGroups] = useState<SpecOptionGroup[]>([]);
+
+  useEffect(() => {
+    apiGet<InventoryPage>("/api/inventory?page_size=500")
+      .then((page) => setSpecGroups(buildSpecOptionGroups(page.items)))
+      .catch((error) => message.error((error as Error).message));
+  }, []);
 
   const onFinish = async (values: any) => {
     setLoading(true);
@@ -33,13 +41,11 @@ export function QuotePage() {
         >
           <Form.Item name="spec" label="规格" rules={[{ required: true }]}>
             <Select
-              style={{ width: 220 }}
-              options={[
-                { value: "100*100*2.5*6m", label: "方管 100*100*2.5*6m" },
-                { value: "100*100*3.0*6m", label: "方管 100*100*3.0*6m" },
-                { value: "100*150*2.5*6m", label: "矩管 100*150*2.5*6m" },
-                { value: "100*200*3.0*6m", label: "矩管 100*200*3.0*6m" },
-              ]}
+              showSearch
+              optionFilterProp="label"
+              placeholder="搜索规格"
+              style={{ width: 280 }}
+              options={specGroups}
             />
           </Form.Item>
           <Form.Item name="pieces" label="支数" rules={[{ required: true }]}>
