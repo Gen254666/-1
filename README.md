@@ -141,19 +141,30 @@ uv run python ../scripts/validate_deploy.py
 
 ## 备份与恢复
 
+生产备份必须设置加密口令；备份目录 0700、文件 0600：
+
 ```bash
 export DATABASE_URL_AGENT=postgresql://steel_agent:密码@localhost:5432/steel_market
 export CHROMA_PATH=./data/chroma
+export BACKUP_PASSPHRASE='使用强随机口令'
 ./scripts/backup.sh
 ```
 
-恢复数据库：
+本地开发如需明文备份，显式设置 `BACKUP_ALLOW_PLAINTEXT=1`，不要用于生产。
+
+解密并恢复数据库：
 
 ```bash
+openssl enc -d -aes-256-cbc -pbkdf2 \
+  -in backups/steel_market-<时间戳>.dump.enc \
+  -out backups/steel_market-<时间戳>.dump \
+  -pass env:BACKUP_PASSPHRASE
 pg_restore -d "$DATABASE_URL" backups/steel_market-<时间戳>.dump
 ```
 
-恢复 Chroma：解压 `backups/chroma-<时间戳>.tar.gz` 到 `CHROMA_PATH` 的父目录即可。
+恢复 Chroma：先按同样方式解密 `backups/chroma-<时间戳>.tar.gz.enc`，再解压到 `CHROMA_PATH` 的父目录。
+
+运行 `bash scripts/verify_backup.sh` 可验证加密、解密和权限逻辑。
 
 ## 知识库
 
