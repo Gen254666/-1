@@ -71,6 +71,14 @@ def _outcome_dict(outcome: ImportOutcome) -> dict[str, Any]:
         "rows_failed": outcome.rows_failed,
         "no_changes": outcome.no_changes,
         "warnings": [warning.message for warning in outcome.warnings],
+        "derived_points_created": outcome.derived_points_created,
+        "derived_points_updated": outcome.derived_points_updated,
+        "derived_points_deactivated": outcome.derived_points_deactivated,
+        "derived_quotes": outcome.derived_quotes,
+        "derived_quote_version_id": (
+            str(outcome.derived_quote_version_id) if outcome.derived_quote_version_id else None
+        ),
+        "derived_quote_no_changes": outcome.derived_quote_no_changes,
     }
 
 
@@ -105,7 +113,7 @@ async def _save_upload(file: UploadFile) -> tuple[Path, Path]:
 
     temp_dir = Path(tempfile.mkdtemp(prefix="steel-import-"))
     basename = Path(filename).name
-    path = temp_dir / f"{uuid.uuid4().hex[:8]}_{basename}"
+    path = temp_dir / basename
     path.write_bytes(content)
     await file.close()
     return temp_dir, path

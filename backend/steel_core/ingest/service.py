@@ -14,6 +14,14 @@ from steel_core.db.models.governance import AuditLog, ImportBatch
 from steel_core.db.models.inventory import InventoryItem, InventorySnapshot
 from steel_core.db.models.market import MarketQuote
 from steel_core.ingest.common import ParseIssue
+from steel_core.ingest.derivation import sync_inventory_derivation
+from steel_core.ingest.derived import (
+    PointCodeError,
+    canonical_rows,
+    category_for_block,
+    point_code,
+    region_for_warehouse,
+)
 from steel_core.ingest.inventory import parse_inventory_workbook
 from steel_core.ingest.quotes import parse_quote_csv
 from steel_core.versioning.service import (
@@ -35,6 +43,12 @@ class ImportOutcome:
     no_changes: bool = False
     warnings: list[ParseIssue] = field(default_factory=list)
     errors: list[ParseIssue] = field(default_factory=list)
+    derived_points_created: int = 0
+    derived_points_updated: int = 0
+    derived_points_deactivated: int = 0
+    derived_quotes: int = 0
+    derived_quote_version_id: UUID | None = None
+    derived_quote_no_changes: bool = False
 
 
 class ImportValidationError(Exception):
@@ -270,6 +284,25 @@ async def import_inventory(
 
     assert parsed.effective_date is not None
     warehouse_name = warehouse or parsed.warehouse
+    canonical = canonical_rows(parsed.rows)
+    region = region_for_warehouse(warehouse_name)
+    try:
+        for row in canonical:
+            point_code(category_for_block(row.block), row.spec, region)
+    except PointCodeError as exc:
+        errors = [ParseIssue(None, "规格", str(exc))]
+        batch = await _record_failed_batch(
+            session,
+            user_id=user_id,
+            dataset_type=DatasetType.INVENTORY,
+            effective_date=parsed.effective_date,
+            path=path,
+            rows_total=len(parsed.rows),
+            rows_ok=0,
+            errors=errors,
+        )
+        raise ImportValidationError(batch.id, errors) from exc
+
     checksum = compute_checksum(
         {
             "warehouse": warehouse_name,
@@ -299,6 +332,14 @@ async def import_inventory(
         )
     except NoChangesError:
         active = await get_active_version(session, DatasetType.INVENTORY, parsed.effective_date)
+        derived = await sync_inventory_derivation(
+            session,
+            user_id=user_id,
+            effective_date=parsed.effective_date,
+            warehouse=warehouse_name,
+            rows=parsed.rows,
+            source_file=path.name,
+        )
         await session.commit()
         return ImportOutcome(
             batch_id=batch.id,
@@ -307,7 +348,13 @@ async def import_inventory(
             rows_ok=len(parsed.rows),
             rows_failed=0,
             no_changes=True,
-            warnings=parsed.warnings,
+            warnings=[*parsed.warnings, *derived.warnings],
+            derived_points_created=derived.points_created,
+            derived_points_updated=derived.points_updated,
+            derived_points_deactivated=derived.points_deactivated,
+            derived_quotes=derived.quotes_written,
+            derived_quote_version_id=derived.quote_version_id,
+            derived_quote_no_changes=derived.quote_no_changes,
         )
 
     snapshot = InventorySnapshot(
@@ -351,6 +398,14 @@ async def import_inventory(
             },
         )
     )
+    derived = await sync_inventory_derivation(
+        session,
+        user_id=user_id,
+        effective_date=parsed.effective_date,
+        warehouse=warehouse_name,
+        rows=parsed.rows,
+        source_file=path.name,
+    )
     await session.commit()
 
     return ImportOutcome(
@@ -359,5 +414,11 @@ async def import_inventory(
         effective_date=parsed.effective_date,
         rows_ok=len(parsed.rows),
         rows_failed=0,
-        warnings=parsed.warnings,
+        warnings=[*parsed.warnings, *derived.warnings],
+        derived_points_created=derived.points_created,
+        derived_points_updated=derived.points_updated,
+        derived_points_deactivated=derived.points_deactivated,
+        derived_quotes=derived.quotes_written,
+        derived_quote_version_id=derived.quote_version_id,
+        derived_quote_no_changes=derived.quote_no_changes,
     )

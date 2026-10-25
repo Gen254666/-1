@@ -70,7 +70,9 @@ async def test_admin_import_inventory_and_rollback(
 
     imports = await app_client.get("/api/admin/imports", headers=headers)
     assert imports.status_code == 200
-    assert imports.json()[0]["status"] == "success"
+    inventory_batch = next(row for row in imports.json() if row["id"] == payload["batch_id"])
+    assert inventory_batch["status"] == "success"
+    assert any(row["file_name"].startswith("自动生成-") for row in imports.json())
 
     rollback = await app_client.post(
         f"/api/admin/imports/{payload['batch_id']}/rollback", headers=headers
@@ -78,7 +80,8 @@ async def test_admin_import_inventory_and_rollback(
     assert rollback.status_code == 200
 
     imports_after = await app_client.get("/api/admin/imports", headers=headers)
-    assert imports_after.json()[0]["status"] == "rolled_back"
+    batch_after = next(row for row in imports_after.json() if row["id"] == payload["batch_id"])
+    assert batch_after["status"] == "rolled_back"
 
 
 async def test_non_admin_cannot_import(
