@@ -1,0 +1,19 @@
+﻿event: session
+data: {"session_id": "0af29518-78f1-4d17-bc65-1a1a356546d1"}
+
+event: token
+data: {"text": "您好，我是钢材行情分析助手。请问您想了解哪方面的信息？例如：\n\n- 查询某日钢材"}
+
+event: token
+data: {"text": "现货报价（如螺纹钢、热卷等）\n- 查看某品种的价格走势\n- 比较两个品种/地区的"}
+
+event: token
+data: {"text": "价差\n- 扫描当日行情异动\n- 查询库存快照\n- 生成报价单或日报\n- 检索钢材"}
+
+event: token
+data: {"text": "相关知识\n\n请告诉我具体需求，我会调用数据工具为您查询。"}
+
+event: done
+data: {"session_id": "0af29518-78f1-4d17-bc65-1a1a356546d1"}
+
+

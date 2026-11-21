@@ -1,0 +1,250 @@
+section: 7560310x10692130 margins L914400 R914400 T914400
+P000 <Plain Text> align=CENTER (1) :: ''
+      runs: ['' font=None sz=None b=None]
+P001 <Plain Text> align=CENTER (1) :: ''
+P002 <Plain Text> align=CENTER (1) :: '实 验 报 告'
+      runs: ['实 验 报 告' font=楷体_GB2312 sz=457200 b=True]
+P003 <Plain Text> align=CENTER (1) :: '《信息系统分析与设计》'
+      runs: ['《信息系统分析与设计》' font=黑体 sz=279400 b=None]
+P004 <Plain Text> align=CENTER (1) :: '2026～2027学年第 一 学期'
+      runs: ['20' font=黑体 sz=228600 b=None] ['2' font=黑体 sz=228600 b=None] ['6～20' font=黑体 sz=228600 b=None] ['2' font=黑体 sz=228600 b=None]
+P005 <Plain Text> align=CENTER (1) :: ''
+      runs: ['' font=None sz=None b=None]
+P006 <Plain Text> indent=808990 :: ''
+P007 <Plain Text> indent=808990 :: ''
+P008 <Plain Text> indent=808990 :: ''
+P009 <Plain Text> indent=808990 :: ''
+P010 <Normal>  :: ''
+P011 <Normal>  :: ''
+P012 <Normal>  :: ''
+P013 <Normal>  :: ''
+P014 <Normal>  :: ''
+P015 <Normal> align=CENTER (1) :: '（智能体开发平台模式）'
+      runs: ['（' font=None sz=177800 b=None] ['智能体开发平台' font=None sz=177800 b=None] ['模式）' font=None sz=177800 b=None]
+P016 <Normal>  :: ''
+TABLE rows=9 cols=4
+   R0: ['学院（部）', '学院（部）', '管理学院', '管理学院']
+   R1: ['指导教师', '指导教师', '张晓燕', '张晓燕']
+   R2: ['课程序号', '课程序号', '3024', '3024']
+   R3: ['学号', '姓名', '分工', '成绩']
+   R4: ['', '', '', '']
+   R5: ['', '', '', '']
+P018 <Normal>  :: ''
+      runs: ['' font=None sz=None b=None]
+P019 <Heading 1>  :: '一、项目基本信息'
+      runs: ['一、项目基本信息' font=None sz=None b=None]
+TABLE rows=3 cols=4
+   R0: ['项目名称', '', '小组编号', '']
+   R1: ['指导教师', '', '实验周期', '']
+   R2: ['项目组长', '', '联系方式', '']
+P021 <Normal>  :: ''
+P022 <Heading 1>  :: '二、小组成员与分工'
+      runs: ['二、小组成员与分工' font=None sz=None b=None]
+TABLE rows=6 cols=5
+   R0: ['姓名', '学号', '角色', '主要职责', '贡献度自评']
+   R1: ['', '', '项目组长/产品经理', '项目规划、需求分析、工作流设计', '']
+   R2: ['', '', 'Prompt 工程师/知识工程师', 'Prompt 设计、知识库构建、效果调优', '']
+   R3: ['', '', '平台开发与集成工程师', '平台配置、API 集成、工作流编排', '']
+   R4: ['', '', '前端与体验设计师', '界面设计、交互体验、前端开发', '']
+   R5: ['', '', '测试与文档工程师', '效果测试、测试用例、报告撰写', '']
+P024 <Normal>  :: ''
+P025 <Normal> indent=304800 :: '请各成员在下方补充自己的具体工作内容和工作量说明：'
+      runs: ['请各成员在下方补充自己的具体工作内容和工' font=None sz=None b=None]
+P026 <Normal> indent=304800 :: '（在此处填写）'
+      runs: ['（在此处填写）' font=None sz=None b=None]
+P027 <Heading 1>  :: '三、项目概述'
+      runs: ['三、项目概述' font=None sz=None b=None]
+P028 <Heading 2>  :: '3.1 项目背景'
+      runs: ['3.1 ' font=None sz=None b=None] ['项目背景' font=None sz=None b=None]
+P029 <Normal> indent=304800 :: '说明选题背景、开发动机、解决的实际问题。'
+      runs: ['说明选题背景、开发动机、解决的实际问题。' font=None sz=None b=None]
+P030 <Normal> indent=304800 :: '（在此处填写）'
+      runs: ['（在此处填写）' font=None sz=None b=None]
+P031 <Heading 2>  :: '3.2 项目目标'
+      runs: ['3.2 ' font=None sz=None b=None] ['项目目标' font=None sz=None b=None]
+P032 <Normal> indent=304800 :: '明确项目的核心目标和预期成果。'
+      runs: ['明确项目的核心目标和预期成果。' font=None sz=None b=None]
+P033 <Normal> indent=304800 :: '（在此处填写）'
+      runs: ['（在此处填写）' font=None sz=None b=None]
+P034 <Heading 2>  :: '3.3 平台选型'
+      runs: ['3.3 ' font=None sz=None b=None] ['平台选型' font=None sz=None b=None]
+P035 <Normal> indent=304800 :: '说明选择的智能体开发平台、大模型及选择理由。'
+      runs: ['说明选择的智能体开发平台、大模型及选择理' font=None sz=None b=None]
+TABLE rows=5 cols=3
+   R0: ['技术类别', '选型', '选择理由']
+   R1: ['智能体平台', '', '']
+   R2: ['大模型', '', '']
+   R3: ['向量数据库', '', '']
+   R4: ['其他工具', '', '']
+P037 <Heading 1>  :: '四、需求分析'
+      runs: ['四、需求分析' font=None sz=None b=None]
+P038 <Heading 2>  :: '4.1 智能体功能需求'
+      runs: ['4.1 ' font=None sz=None b=None] ['智能体功能需求' font=None sz=None b=None]
+P039 <Normal> indent=304800 :: '列出智能体系统的核心功能：智能对话、知识检索、工具调用等。'
+      runs: ['列出智能体系统的核心功能：智能对话、知识' font=None sz=None b=None]
+TABLE rows=6 cols=4
+   R0: ['功能模块', '功能描述', '交互方式', '优先级']
+   R1: ['智能对话', '', '', '高']
+   R2: ['知识检索', '', '', '高']
+   R3: ['工具调用', '', '', '中']
+   R4: ['', '', '', '']
+   R5: ['', '', '', '']
+P041 <Normal>  :: ''
+P042 <Heading 2>  :: '4.2 非功能需求'
+      runs: ['4.2 ' font=None sz=None b=None] ['非功能需求' font=None sz=None b=None]
+P043 <Normal> indent=304800 :: '描述响应质量、响应速度、安全性、可扩展性等。'
+      runs: ['描述响应质量、响应速度、安全性、可扩展性' font=None sz=None b=None]
+P044 <Normal> indent=304800 :: '（在此处填写）'
+      runs: ['（在此处填写）' font=None sz=None b=None]
+P045 <Heading 2>  :: '4.3 智能体工作流设计（可放截图）'
+      runs: ['4.3 ' font=None sz=None b=None] ['智能体工作流设计' font=None sz=None b=None] ['（可放截图）' font=None sz=None b=None]
+P046 <Normal> indent=304800 :: '描述智能体的完整工作流（用户输入 → 意图识别 → 知识检索 → 答案生成 → 结果输出）。'
+      runs: ['描述智能体的完整工作流（用户输入' font=None sz=None b=None] [' → ' font=None sz=None b=None] ['意图识别' font=None sz=None b=None] [' → ' font=None sz=None b=None]
+P047 <Normal> indent=304800 :: '（在此处填写）'
+      runs: ['（在此处填写）' font=None sz=None b=None]
+P048 <Heading 1>  :: '五、系统设计'
+      runs: ['五、系统设计' font=None sz=None b=None]
+P049 <Heading 2>  :: '5.1 智能体应用架构'
+      runs: ['5.1 ' font=None sz=None b=None] ['智能体应用架构' font=None sz=None b=None]
+P050 <Normal> indent=304800 :: '描述智能体系统的整体架构（智能体层、知识库层、集成层、展示层）。'
+      runs: ['描述智能体系统的整体架构（智能体层、知识' font=None sz=None b=None]
+P051 <Normal> indent=304800 :: '（在此处填写）'
+      runs: ['（在此处填写）' font=None sz=None b=None]
+P052 <Heading 2>  :: '5.2 知识库设计'
+      runs: ['5.2 ' font=None sz=None b=None] ['知识库设计' font=None sz=None b=None]
+P053 <Normal> indent=304800 :: '说明知识库的文档来源、数量、处理方式、分段策略。'
+      runs: ['说明知识库的文档来源、数量、处理方式、分' font=None sz=None b=None]
+TABLE rows=4 cols=5
+   R0: ['文档名称', '格式', '来源', '条目数', '说明']
+   R1: ['', '', '', '', '']
+   R2: ['', '', '', '', '']
+   R3: ['', '', '', '', '']
+P055 <Normal>  :: ''
+P056 <Heading 2>  :: '5.3 Prompt 设计'
+      runs: ['5.3 Prompt ' font=None sz=None b=None] ['设计' font=None sz=None b=None]
+P057 <Normal> indent=304800 :: '记录核心 Prompt 的设计思路、版本迭代过程及优化理由。'
+      runs: ['记录核心' font=None sz=None b=None] [' Prompt ' font=None sz=None b=None] ['的设计思路、版本迭代过程及优化理由。' font=None sz=None b=None]
+TABLE rows=4 cols=4
+   R0: ['版本', 'Prompt 内容摘要', '优化点', '效果说明']
+   R1: ['V1', '', '', '']
+   R2: ['V2', '', '', '']
+   R3: ['V3', '', '', '']
+P059 <Normal>  :: ''
+P060 <Heading 2>  :: '5.4 工作流编排'
+      runs: ['5.4 ' font=None sz=None b=None] ['工作流编排' font=None sz=None b=None]
+P061 <Normal> indent=304800 :: '描述智能体工作流的编排逻辑，包括节点、条件分支、工具调用等。'
+      runs: ['描述智能体工作流的编排逻辑，包括节点、条' font=None sz=None b=None]
+P062 <Normal> indent=304800 :: '（在此处填写）'
+      runs: ['（在此处填写）' font=None sz=None b=None]
+P063 <Heading 2>  :: '5.5 界面设计'
+      runs: ['5.5 ' font=None sz=None b=None] ['界面设计' font=None sz=None b=None]
+P064 <Normal> indent=304800 :: '给出系统主要页面的截图或对话界面截图，并加以简要说明。'
+      runs: ['给出系统主要页面的截图或对话界面截图，并' font=None sz=None b=None]
+P065 <Normal> indent=304800 :: '（在此处插入图片或描述）'
+      runs: ['（在此处插入图片或描述）' font=None sz=None b=None]
+P066 <Heading 1>  :: '六、系统实现'
+      runs: ['六、系统实现' font=None sz=None b=None]
+P067 <Heading 2>  :: '6.1 智能体配置与实现'
+      runs: ['6.1 ' font=None sz=None b=None] ['智能体配置与实现' font=None sz=None b=None]
+P068 <Normal> indent=304800 :: '描述智能体应用的配置过程，包括平台配置、工作流编排、工具集成等。'
+      runs: ['描述智能体应用的配置过程，包括平台配置、' font=None sz=None b=None]
+P069 <Normal> indent=304800 :: '（在此处填写）'
+      runs: ['（在此处填写）' font=None sz=None b=None]
+P070 <Heading 2>  :: '6.2 系统截图'
+      runs: ['6.2 ' font=None sz=None b=None] ['系统截图' font=None sz=None b=None]
+P071 <Normal> indent=304800 :: '提供智能体对话界面、工作流配置、知识库管理等截图。'
+      runs: ['提供智能体对话界面、工作流配置、知识库管' font=None sz=None b=None]
+P072 <Normal> indent=304800 :: '（在此处插入图片）'
+      runs: ['（在此处插入图片）' font=None sz=None b=None]
+P073 <Heading 2>  :: '6.3 工具/API 集成'
+      runs: ['6.3 ' font=None sz=None b=None] ['工具' font=None sz=None b=None] ['/API ' font=None sz=None b=None] ['集成' font=None sz=None b=None]
+P074 <Normal> indent=304800 :: '说明集成的外部工具或 API 及其使用场景。'
+      runs: ['说明集成的外部工具或' font=None sz=None b=None] [' API ' font=None sz=None b=None] ['及其使用场景。' font=None sz=None b=None]
+P075 <Normal> indent=304800 :: '（在此处填写）'
+      runs: ['（在此处填写）' font=None sz=None b=None]
+P076 <Heading 1>  :: '七、测试报告'
+      runs: ['七、测试报告' font=None sz=None b=None]
+P077 <Heading 2>  :: '7.1 智能体效果测试'
+      runs: ['7.1 ' font=None sz=None b=None] ['智能体效果测试' font=None sz=None b=None]
+P078 <Normal> indent=304800 :: '设计测试场景，评估智能体的回答准确率、相关性、完整性。'
+      runs: ['设计测试场景，评估智能体的回答准确率、相' font=None sz=None b=None]
+TABLE rows=6 cols=5
+   R0: ['测试场景', '用户输入', '智能体回答摘要', '是否准确', '评价']
+   R1: ['', '', '', '', '']
+   R2: ['', '', '', '', '']
+   R3: ['', '', '', '', '']
+   R4: ['', '', '', '', '']
+   R5: ['', '', '', '', '']
+P080 <Normal>  :: ''
+P081 <Heading 2>  :: '7.2 测试结果汇总'
+      runs: ['7.2 ' font=None sz=None b=None] ['测试结果汇总' font=None sz=None b=None]
+TABLE rows=6 cols=4
+   R0: ['测试维度', '测试数', '正确数', '准确率']
+   R1: ['意图识别', '', '', '']
+   R2: ['知识检索', '', '', '']
+   R3: ['工具调用', '', '', '']
+   R4: ['边界处理', '', '', '']
+   R5: ['合计', '', '', '']
+P083 <Normal>  :: ''
+P084 <Heading 2>  :: '7.3 Prompt 优化记录'
+      runs: ['7.3 Prompt ' font=None sz=None b=None] ['优化记录' font=None sz=None b=None]
+P085 <Normal> indent=304800 :: '记录基于测试反馈对 Prompt 进行的优化迭代。'
+      runs: ['记录基于测试反馈对' font=None sz=None b=None] [' Prompt ' font=None sz=None b=None] ['进行的优化迭代。' font=None sz=None b=None]
+TABLE rows=4 cols=4
+   R0: ['迭代版本', '优化前问题', '优化措施', '优化后效果']
+   R1: ['V1 → V2', '', '', '']
+   R2: ['V2 → V3', '', '', '']
+   R3: ['V3 → V4', '', '', '']
+P087 <Heading 1>  :: '八、项目进度记录'
+      runs: ['八、项目进度记录' font=None sz=None b=None]
+P088 <Normal> indent=304800 :: '按日期记录项目开发过程中的关键事件和进度。'
+      runs: ['按日期记录项目开发过程中的关键事件和进度' font=None sz=None b=None]
+TABLE rows=11 cols=4
+   R0: ['日期', '工作内容', '完成情况', '遇到的问题']
+   R1: ['第 1 天', '', '', '']
+   R2: ['第 2 天', '', '', '']
+   R3: ['第 3 天', '', '', '']
+   R4: ['第 4 天', '', '', '']
+   R5: ['第 5 天', '', '', '']
+P090 <Heading 1>  :: '九、总结与反思'
+      runs: ['九、总结与反思' font=None sz=None b=None]
+P091 <Heading 2>  :: '9.1 项目成果总结'
+      runs: ['9.1 ' font=None sz=None b=None] ['项目成果总结' font=None sz=None b=None]
+P092 <Normal> indent=304800 :: '总结项目实现的功能、达到的效果、与预期目标的对比。'
+      runs: ['总结项目实现的功能、达到的效果、与预期目' font=None sz=None b=None]
+P093 <Normal> indent=304800 :: '（在此处填写）'
+      runs: ['（在此处填写）' font=None sz=None b=None]
+P094 <Heading 2>  :: '9.2 遇到的问题与解决方案'
+      runs: ['9.2 ' font=None sz=None b=None] ['遇到的问题与解决方案' font=None sz=None b=None]
+P095 <Normal> indent=304800 :: '记录开发过程中遇到的主要问题及采取的解决方案。'
+      runs: ['记录开发过程中遇到的主要问题及采取的解决' font=None sz=None b=None]
+P096 <Normal> indent=304800 :: '（在此处填写）'
+      runs: ['（在此处填写）' font=None sz=None b=None]
+P097 <Heading 2>  :: '9.3 个人收获与反思'
+      runs: ['9.3 ' font=None sz=None b=None] ['个人收获与反思' font=None sz=None b=None]
+P098 <Normal> indent=304800 :: '从技术能力、团队协作、项目管理等方面进行个人反思。'
+      runs: ['从技术能力、团队协作、项目管理等方面进行' font=None sz=None b=None]
+P099 <Normal> indent=304800 :: '（在此处填写）'
+      runs: ['（在此处填写）' font=None sz=None b=None]
+P100 <Heading 2>  :: '9.4 改进建议'
+      runs: ['9.4 ' font=None sz=None b=None] ['改进建议' font=None sz=None b=None]
+P101 <Normal> indent=304800 :: '对项目和实验课程的改进建议。'
+      runs: ['对项目和实验课程的改进建议。' font=None sz=None b=None]
+P102 <Normal> indent=304800 :: '（在此处填写）'
+      runs: ['（在此处填写）' font=None sz=None b=None]
+P103 <Heading 1>  :: '十、附录'
+      runs: ['十、附录' font=None sz=None b=None]
+P104 <Heading 2>  :: '10.1 参考资料'
+      runs: ['10.' font=None sz=None b=None] ['1' font=None sz=None b=None] [' ' font=None sz=None b=None] ['参考资料' font=None sz=None b=None]
+P105 <Normal> indent=304800 :: '列出开发过程中参考的文档、教程、技术资料等。'
+      runs: ['列出开发过程中参考的文档、教程、技术资料' font=None sz=None b=None]
+P106 <List Paragraph>  :: ''
+P107 <List Paragraph>  :: ''
+P108 <List Paragraph>  :: ''
+P109 <Normal>  :: ''
+P110 <Heading 2>  :: '10.3 其他补充材料'
+      runs: ['10.3 ' font=None sz=None b=None] ['其他补充材料' font=None sz=None b=None]
+P111 <Normal> indent=304800 :: '如有其他补充材料（如演示视频链接、额外截图等）请在此处提供。'
+      runs: ['如有其他补充材料（如演示视频链接、额外截' font=None sz=None b=None]
+P112 <Normal> indent=304800 :: '（在此处填写）'
+      runs: ['（在此处填写）' font=None sz=None b=None]
